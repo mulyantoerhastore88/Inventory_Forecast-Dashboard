@@ -870,18 +870,95 @@ if last_3_months_performance:
         
         months_display.append(month_name)
     
-    # Overall metrics for last 3 months - INI DIKECILKAN
+    # TOTAL METRICS - BULAN TERAKHIR (dengan Qty dan persentase)
     st.divider()
+    st.subheader("📊 Total Metrics - Bulan Terakhir")
     
-    # Calculate aggregated metrics for last 3 months
-    total_under = sum(data['status_counts'].get('Under', 0) for data in last_3_months_performance.values())
-    total_accurate = sum(data['status_counts'].get('Accurate', 0) for data in last_3_months_performance.values())
-    total_over = sum(data['status_counts'].get('Over', 0) for data in last_3_months_performance.values())
-    total_skus = sum(data['total_records'] for data in last_3_months_performance.values())
+    # Calculate metrics for LAST MONTH ONLY
+    if monthly_performance:
+        last_month = sorted(monthly_performance.keys())[-1]
+        last_month_data = monthly_performance[last_month]['data']
+        
+        # Count SKUs by status for last month
+        under_count = last_month_data[last_month_data['Accuracy_Status'] == 'Under']['SKU_ID'].nunique()
+        accurate_count = last_month_data[last_month_data['Accuracy_Status'] == 'Accurate']['SKU_ID'].nunique()
+        over_count = last_month_data[last_month_data['Accuracy_Status'] == 'Over']['SKU_ID'].nunique()
+        total_count_last_month = last_month_data['SKU_ID'].nunique()
+        
+        # Sum of forecast quantity by status for last month
+        under_forecast_qty = last_month_data[last_month_data['Accuracy_Status'] == 'Under']['Forecast_Qty'].sum()
+        accurate_forecast_qty = last_month_data[last_month_data['Accuracy_Status'] == 'Accurate']['Forecast_Qty'].sum()
+        over_forecast_qty = last_month_data[last_month_data['Accuracy_Status'] == 'Over']['Forecast_Qty'].sum()
+        total_forecast_qty = last_month_data['Forecast_Qty'].sum()
+        
+        # Calculate percentages
+        under_pct = (under_count / total_count_last_month * 100) if total_count_last_month > 0 else 0
+        accurate_pct = (accurate_count / total_count_last_month * 100) if total_count_last_month > 0 else 0
+        over_pct = (over_count / total_count_last_month * 100) if total_count_last_month > 0 else 0
+        
+        under_forecast_pct = (under_forecast_qty / total_forecast_qty * 100) if total_forecast_qty > 0 else 0
+        accurate_forecast_pct = (accurate_forecast_qty / total_forecast_qty * 100) if total_forecast_qty > 0 else 0
+        over_forecast_pct = (over_forecast_qty / total_forecast_qty * 100) if total_forecast_qty > 0 else 0
     
-    avg_accuracy = np.mean([data['accuracy'] for data in last_3_months_performance.values()])
+    # Layout untuk Total Metrics bulan terakhir
+    col_total1, col_total2, col_total3, col_total4 = st.columns(4)
     
-    # TOTAL ROFO DAN PO BULAN TERAKHIR (TAMBAHAN BARU)
+    with col_total1:
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-left: 4px solid #F44336;">
+            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">UNDER FORECAST</div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: #F44336;">{under_count} SKUs</div>
+            <div style="font-size: 0.9rem; color: #888;">Qty: {under_forecast_qty:,.0f}</div>
+            <div style="font-size: 0.8rem; color: #999;">
+                SKU: {under_pct:.1f}% | Qty: {under_forecast_pct:.1f}%
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_total2:
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-left: 4px solid #4CAF50;">
+            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">ACCURATE FORECAST</div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: #4CAF50;">{accurate_count} SKUs</div>
+            <div style="font-size: 0.9rem; color: #888;">Qty: {accurate_forecast_qty:,.0f}</div>
+            <div style="font-size: 0.8rem; color: #999;">
+                SKU: {accurate_pct:.1f}% | Qty: {accurate_forecast_pct:.1f}%
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_total3:
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-left: 4px solid #FF9800;">
+            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">OVER FORECAST</div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: #FF9800;">{over_count} SKUs</div>
+            <div style="font-size: 0.9rem; color: #888;">Qty: {over_forecast_qty:,.0f}</div>
+            <div style="font-size: 0.8rem; color: #999;">
+                SKU: {over_pct:.1f}% | Qty: {over_forecast_pct:.1f}%
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col_total4:
+        # Calculate overall accuracy for last month
+        last_month_accuracy = monthly_performance[last_month]['accuracy']
+        st.markdown(f"""
+        <div style="background: white; border-radius: 10px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-left: 4px solid #667eea;">
+            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">OVERALL</div>
+            <div style="font-size: 1.8rem; font-weight: 800; color: #667eea;">{last_month_accuracy:.1f}%</div>
+            <div style="font-size: 0.9rem; color: #888;">{last_month.strftime('%b %Y')}</div>
+            <div style="font-size: 0.8rem; color: #999;">
+                Total SKUs: {total_count_last_month}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Summary stats for last month
+    st.caption(f"""
+    **Bulan {last_month.strftime('%b %Y')}:** Total Forecast: {total_forecast_qty:,.0f} | Total SKUs: {total_count_last_month} | Overall Accuracy: {last_month_accuracy:.1f}%
+    """)
+    
+    # TOTAL ROFO DAN PO BULAN TERAKHIR
     if monthly_performance:
         last_month = sorted(monthly_performance.keys())[-1]
         last_month_data = monthly_performance[last_month]['data']
@@ -891,51 +968,9 @@ if last_3_months_performance:
         selisih_qty = total_po_last_month - total_rofo_last_month
         selisih_persen = (selisih_qty / total_rofo_last_month * 100) if total_rofo_last_month > 0 else 0
     
-    # Layout baru untuk summary metrics (lebih kecil)
-    col_sum1, col_sum2, col_sum3, col_sum4 = st.columns(4)
-    
-    with col_sum1:
-        under_pct = (total_under / total_skus * 100) if total_skus > 0 else 0
-        st.markdown(f"""
-        <div style="background: white; border-radius: 10px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">TOTAL UNDER</div>
-            <div style="font-size: 1.8rem; font-weight: 800; color: #F44336;">{total_under}</div>
-            <div style="font-size: 0.8rem; color: #888;">{under_pct:.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_sum2:
-        accurate_pct = (total_accurate / total_skus * 100) if total_skus > 0 else 0
-        st.markdown(f"""
-        <div style="background: white; border-radius: 10px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">TOTAL ACCURATE</div>
-            <div style="font-size: 1.8rem; font-weight: 800; color: #4CAF50;">{total_accurate}</div>
-            <div style="font-size: 0.8rem; color: #888;">{accurate_pct:.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_sum3:
-        over_pct = (total_over / total_skus * 100) if total_skus > 0 else 0
-        st.markdown(f"""
-        <div style="background: white; border-radius: 10px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">TOTAL OVER</div>
-            <div style="font-size: 1.8rem; font-weight: 800; color: #FF9800;">{total_over}</div>
-            <div style="font-size: 0.8rem; color: #888;">{over_pct:.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    with col_sum4:
-        st.markdown(f"""
-        <div style="background: white; border-radius: 10px; padding: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
-            <div style="font-size: 0.9rem; color: #666; margin-bottom: 0.5rem;">AVG ACCURACY</div>
-            <div style="font-size: 1.8rem; font-weight: 800; color: #667eea;">{avg_accuracy:.1f}%</div>
-            <div style="font-size: 0.8rem; color: #888;">{total_skus} records</div>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # ROW BARU UNTUK TOTAL ROFO, PO, SELISIH (TAMBAHAN)
+    # ROW UNTUK TOTAL ROFO, PO, SELISIH
     st.divider()
-    st.subheader("📊 Total Rofo vs PO - Bulan Terakhir")
+    st.subheader("📈 Total Rofo vs PO - Bulan Terakhir")
     
     rofo_col1, rofo_col2, rofo_col3, rofo_col4 = st.columns(4)
     
