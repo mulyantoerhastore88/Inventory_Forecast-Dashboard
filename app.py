@@ -411,7 +411,7 @@ def load_and_process_data(_client):
 # --- ====================================================== ---
 
 def calculate_monthly_performance(df_forecast, df_po, df_product):
-    """Calculate performance for each month separately"""
+    """Calculate performance for each month separately - HANYA SKU dengan Forecast_Qty > 0"""
     
     monthly_performance = {}
     
@@ -429,8 +429,12 @@ def calculate_monthly_performance(df_forecast, df_po, df_product):
         all_months = sorted(set(list(forecast_months) + list(po_months)))
         
         for month in all_months:
-            # Get data for this month
-            df_forecast_month = df_forecast[df_forecast['Month'] == month].copy()
+            # Get data for this month - FILTER HANYA Forecast_Qty > 0
+            df_forecast_month = df_forecast[
+                (df_forecast['Month'] == month) & 
+                (df_forecast['Forecast_Qty'] > 0)  # INI PERUBAHAN PENTING!
+            ].copy()
+            
             df_po_month = df_po[df_po['Month'] == month].copy()
             
             if df_forecast_month.empty or df_po_month.empty:
@@ -441,7 +445,7 @@ def calculate_monthly_performance(df_forecast, df_po, df_product):
                 df_forecast_month,
                 df_po_month,
                 on=['SKU_ID'],
-                how='inner',
+                how='inner',  # INNER JOIN untuk dapatkan SKU yang ada di kedua dataset
                 suffixes=('_forecast', '_po')
             )
             
@@ -450,7 +454,7 @@ def calculate_monthly_performance(df_forecast, df_po, df_product):
                 if 'Product_Name' not in df_merged.columns or 'Brand' not in df_merged.columns:
                     df_merged = add_product_info_to_data(df_merged, df_product)
                 
-                # Calculate ratio
+                # Calculate ratio - Pastikan Forecast_Qty > 0
                 df_merged['PO_Rofo_Ratio'] = np.where(
                     df_merged['Forecast_Qty'] > 0,
                     (df_merged['PO_Qty'] / df_merged['Forecast_Qty']) * 100,
@@ -468,7 +472,14 @@ def calculate_monthly_performance(df_forecast, df_po, df_product):
                 
                 # Calculate metrics
                 df_merged['Absolute_Percentage_Error'] = abs(df_merged['PO_Rofo_Ratio'] - 100)
-                mape = df_merged['Absolute_Percentage_Error'].mean()
+                
+                # Hanya hitung MAPE untuk SKU dengan Forecast_Qty > 0
+                valid_skus = df_merged[df_merged['Forecast_Qty'] > 0]
+                if not valid_skus.empty:
+                    mape = valid_skus['Absolute_Percentage_Error'].mean()
+                else:
+                    mape = 0
+                    
                 monthly_accuracy = 100 - mape
                 
                 # Status counts
