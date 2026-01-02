@@ -1071,11 +1071,30 @@ if last_3_months_performance:
         selisih_qty = total_po_last_month - total_rofo_last_month
         selisih_persen = (selisih_qty / total_rofo_last_month * 100) if total_rofo_last_month > 0 else 0
     
-    # ROW UNTUK TOTAL ROFO, PO, SELISIH
+        # ROW UNTUK TOTAL ROFO, PO, SALES - BULAN TERAKHIR
     st.divider()
-    st.subheader("📈 Total Rofo vs PO - Bulan Terakhir")
+    st.subheader("📈 Total Rofo vs PO vs Sales - Bulan Terakhir")
     
-    rofo_col1, rofo_col2, rofo_col3, rofo_col4 = st.columns(4)
+    # Hitung total sales untuk bulan terakhir
+    total_sales_last_month = 0
+    sales_vs_rofo_pct = 0
+    sales_vs_po_pct = 0
+    
+    if not df_sales.empty and monthly_performance:
+        last_month = sorted(monthly_performance.keys())[-1]
+        df_sales_last_month = df_sales[df_sales['Month'] == last_month].copy()
+        total_sales_last_month = df_sales_last_month['Sales_Qty'].sum()
+        
+        # Hitung persentase sales vs rofo
+        if total_rofo_last_month > 0:
+            sales_vs_rofo_pct = (total_sales_last_month / total_rofo_last_month * 100)
+        
+        # Hitung persentase sales vs po
+        if total_po_last_month > 0:
+            sales_vs_po_pct = (total_sales_last_month / total_po_last_month * 100)
+    
+    # Buat 6 columns untuk Rofo, PO, Sales dan persentasenya
+    rofo_col1, rofo_col2, rofo_col3, rofo_col4, rofo_col5, rofo_col6 = st.columns(6)
     
     with rofo_col1:
         st.metric(
@@ -1093,24 +1112,54 @@ if last_3_months_performance:
     
     with rofo_col3:
         st.metric(
-            "Selisih Qty",
-            f"{selisih_qty:+,.0f}",
-            f"{selisih_persen:+.1f}%",
-            delta_color="normal" if abs(selisih_persen) < 20 else "off",
-            help="Selisih antara PO dan Rofo (POSITIVE = PO > Rofo)"
+            "Total Sales Qty",
+            f"{total_sales_last_month:,.0f}",
+            help="Total quantity dari Sales bulan terakhir"
         )
     
     with rofo_col4:
-        accurate_count = last_month_data[last_month_data['Accuracy_Status'] == 'Accurate']['SKU_ID'].nunique()
-        total_count = last_month_data['SKU_ID'].nunique()
-        accurate_pct_last_month = (accurate_count / total_count * 100) if total_count > 0 else 0
+        # Sales vs Rofo %
+        delta_sales_rofo = f"{sales_vs_rofo_pct-100:+.1f}%" if sales_vs_rofo_pct > 0 else "0%"
         st.metric(
-            "Accurate SKUs",
-            f"{accurate_count}",
-            f"{accurate_pct_last_month:.1f}%",
-            help="Jumlah SKU dengan accuracy 80-120% di bulan terakhir"
+            "Sales/Rofo %",
+            f"{sales_vs_rofo_pct:.1f}%",
+            delta=delta_sales_rofo,
+            delta_color="normal" if 80 <= sales_vs_rofo_pct <= 120 else "off",
+            help="Persentase Sales vs Rofo (100% = Sales = Rofo)"
         )
-
+    
+    with rofo_col5:
+        # Sales vs PO %
+        delta_sales_po = f"{sales_vs_po_pct-100:+.1f}%" if sales_vs_po_pct > 0 else "0%"
+        st.metric(
+            "Sales/PO %",
+            f"{sales_vs_po_pct:.1f}%",
+            delta=delta_sales_po,
+            delta_color="normal" if 80 <= sales_vs_po_pct <= 120 else "off",
+            help="Persentase Sales vs PO (100% = Sales = PO)"
+        )
+    
+    with rofo_col6:
+        # PO vs Rofo % (selisih PO-Rofo yang sudah ada)
+        delta_po_rofo = f"{selisih_persen:+.1f}%"
+        st.metric(
+            "PO/Rofo %",
+            f"{(total_po_last_month/total_rofo_last_month*100 if total_rofo_last_month > 0 else 0):.1f}%",
+            delta=delta_po_rofo,
+            delta_color="normal" if abs(selisih_persen) < 20 else "off",
+            help="Persentase PO vs Rofo (100% = PO = Rofo)"
+        )
+    
+    # Summary bar di bawah
+    st.caption(f"""
+    **Bulan {last_month.strftime('%b %Y')}:** 
+    • **Rofo:** {total_rofo_last_month:,.0f} | 
+    • **PO:** {total_po_last_month:,.0f} | 
+    • **Sales:** {total_sales_last_month:,.0f} | 
+    • **Sales/Rofo:** {sales_vs_rofo_pct:.1f}% | 
+    • **Sales/PO:** {sales_vs_po_pct:.1f}% | 
+    • **PO/Rofo:** {(total_po_last_month/total_rofo_last_month*100 if total_rofo_last_month > 0 else 0):.1f}%
+    """)
 else:
     st.warning("⚠️ Insufficient data for monthly performance analysis")
 
