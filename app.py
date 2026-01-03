@@ -1179,146 +1179,352 @@ if monthly_performance:
         eval_tab1, eval_tab2 = st.tabs([f"📉 UNDER Forecast ({last_month_name})", f"📈 OVER Forecast ({last_month_name})"])
         
         with eval_tab1:
-            under_skus_df = last_month_data['under_skus']
-            if not under_skus_df.empty:
-                # Add inventory data
-                if 'inventory_df' in inventory_metrics:
-                    inventory_data = inventory_metrics['inventory_df'][['SKU_ID', 'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']]
-                    under_skus_df = pd.merge(under_skus_df, inventory_data, on='SKU_ID', how='left')
-                
-                # Prepare display columns - WAJIB dengan Product_Name
-                display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier', 'Accuracy_Status',
-                              'Forecast_Qty', 'PO_Qty', 'PO_Rofo_Ratio', 
-                              'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
-                
-                # Filter available columns
-                available_cols = [col for col in display_cols if col in under_skus_df.columns]
-                
-                # Pastikan Product_Name selalu ada
-                if 'Product_Name' not in available_cols and 'Product_Name' in under_skus_df.columns:
-                    available_cols.insert(1, 'Product_Name')
-                
-                # Format the dataframe
-                display_df = under_skus_df[available_cols].copy()
-                
-                # Add formatted columns
-                if 'PO_Rofo_Ratio' in display_df.columns:
-                    display_df['PO_Rofo_Ratio'] = display_df['PO_Rofo_Ratio'].apply(lambda x: f"{x:.1f}%")
-                
-                if 'Cover_Months' in display_df.columns:
-                    display_df['Cover_Months'] = display_df['Cover_Months'].apply(lambda x: f"{x:.1f}" if x < 999 else "N/A")
-                
-                if 'Avg_Monthly_Sales_3M' in display_df.columns:
-                    display_df['Avg_Monthly_Sales_3M'] = display_df['Avg_Monthly_Sales_3M'].apply(lambda x: f"{x:.0f}")
-                
-                # Rename columns for display - WAJIB dengan Product Name
-                column_names = {
-                    'SKU_ID': 'SKU ID',
-                    'Product_Name': 'Product Name',
-                    'Brand': 'Brand',
-                    'SKU_Tier': 'Tier',
-                    'Accuracy_Status': 'Status',
-                    'Forecast_Qty': 'Forecast Qty',
-                    'PO_Qty': 'PO Qty',
-                    'PO_Rofo_Ratio': 'PO/Rofo %',
-                    'Stock_Qty': 'Stock Available',
-                    'Avg_Monthly_Sales_3M': 'Avg Sales (3M)',
-                    'Cover_Months': 'Cover (Months)'
-                }
-                
-                display_df = display_df.rename(columns=column_names)
-                
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    height=500
-                )
-                
-                # Summary
-                total_forecast = under_skus_df['Forecast_Qty'].sum()
-                total_po = under_skus_df['PO_Qty'].sum()
-                avg_ratio = under_skus_df['PO_Rofo_Ratio'].mean()
-                
-                st.caption(f"""
-                **Total UNDER Forecast SKUs:** {len(under_skus_df)} | 
-                **Average PO/Rofo Ratio:** {avg_ratio:.1f}% | 
-                **Total Forecast:** {total_forecast:,.0f} | 
-                **Total PO:** {total_po:,.0f} | 
-                **Selisih:** {total_po - total_forecast:+,.0f} ({((total_po - total_forecast)/total_forecast*100 if total_forecast > 0 else 0):+.1f}%)
-                """)
-            else:
-                st.success(f"✅ No SKUs with UNDER forecast in {last_month_name}")
+    under_skus_df = last_month_data['under_skus']
+    if not under_skus_df.empty:
+        # Add inventory data
+        if 'inventory_df' in inventory_metrics:
+            inventory_data = inventory_metrics['inventory_df'][['SKU_ID', 'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']]
+            under_skus_df = pd.merge(under_skus_df, inventory_data, on='SKU_ID', how='left')
         
-        with eval_tab2:
-            over_skus_df = last_month_data['over_skus']
-            if not over_skus_df.empty:
-                # Add inventory data
-                if 'inventory_df' in inventory_metrics:
-                    inventory_data = inventory_metrics['inventory_df'][['SKU_ID', 'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']]
-                    over_skus_df = pd.merge(over_skus_df, inventory_data, on='SKU_ID', how='left')
+        # TAMBAH: Get last 3 months sales data
+        sales_cols_last_3 = []
+        if not df_sales.empty:
+            # Get last 3 months from sales data
+            sales_months = sorted(df_sales['Month'].unique())
+            if len(sales_months) >= 3:
+                last_3_sales_months = sales_months[-3:]
                 
-                # Prepare display columns - WAJIB dengan Product_Name
-                display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier', 'Accuracy_Status',
-                              'Forecast_Qty', 'PO_Qty', 'PO_Rofo_Ratio', 
-                              'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
+                # Create pivot for last 3 months sales
+                try:
+                    sales_pivot = df_sales[df_sales['Month'].isin(last_3_sales_months)].pivot_table(
+                        index='SKU_ID',
+                        columns='Month',
+                        values='Sales_Qty',
+                        aggfunc='sum',
+                        fill_value=0
+                    ).reset_index()
+                    
+                    # Rename columns to month names
+                    month_rename = {}
+                    for col in sales_pivot.columns:
+                        if isinstance(col, datetime):
+                            month_rename[col] = col.strftime('%b-%Y')
+                    sales_pivot = sales_pivot.rename(columns=month_rename)
+                    
+                    # Merge with under_skus_df
+                    under_skus_df = pd.merge(
+                        under_skus_df,
+                        sales_pivot,
+                        on='SKU_ID',
+                        how='left'
+                    )
+                    
+                    # Get the sales column names
+                    sales_cols_last_3 = [col for col in sales_pivot.columns if isinstance(col, str) and '-' in col]
+                    sales_cols_last_3 = sorted(sales_cols_last_3[-3:])  # Get last 3 months
+                    
+                except Exception as e:
+                    st.warning(f"Tidak bisa menambahkan data sales 3 bulan terakhir: {str(e)}")
+        
+        # Prepare display columns - TAMBAH sales columns
+        display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier', 'Accuracy_Status',
+                      'Forecast_Qty', 'PO_Qty', 'PO_Rofo_Ratio', 
+                      'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
+        
+        # Tambah sales columns jika ada
+        display_cols.extend(sales_cols_last_3)
+        
+        # Filter available columns
+        available_cols = [col for col in display_cols if col in under_skus_df.columns]
+        
+        # Pastikan Product_Name selalu ada
+        if 'Product_Name' not in available_cols and 'Product_Name' in under_skus_df.columns:
+            available_cols.insert(1, 'Product_Name')
+        
+        # Format the dataframe
+        display_df = under_skus_df[available_cols].copy()
+        
+        # Add formatted columns
+        if 'PO_Rofo_Ratio' in display_df.columns:
+            display_df['PO_Rofo_Ratio'] = display_df['PO_Rofo_Ratio'].apply(lambda x: f"{x:.1f}%")
+        
+        if 'Cover_Months' in display_df.columns:
+            display_df['Cover_Months'] = display_df['Cover_Months'].apply(lambda x: f"{x:.1f}" if x < 999 else "N/A")
+        
+        if 'Avg_Monthly_Sales_3M' in display_df.columns:
+            display_df['Avg_Monthly_Sales_3M'] = display_df['Avg_Monthly_Sales_3M'].apply(lambda x: f"{x:.0f}")
+        
+        # Format sales columns
+        for col in sales_cols_last_3:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(lambda x: f"{x:.0f}" if pd.notnull(x) else "0")
+        
+        # Rename columns for display
+        column_names = {
+            'SKU_ID': 'SKU ID',
+            'Product_Name': 'Product Name',
+            'Brand': 'Brand',
+            'SKU_Tier': 'Tier',
+            'Accuracy_Status': 'Status',
+            'Forecast_Qty': 'Forecast Qty',
+            'PO_Qty': 'PO Qty',
+            'PO_Rofo_Ratio': 'PO/Rofo %',
+            'Stock_Qty': 'Stock Available',
+            'Avg_Monthly_Sales_3M': 'Avg Sales (3M)',
+            'Cover_Months': 'Cover (Months)'
+        }
+        
+        # Add sales columns to rename dict
+        for col in sales_cols_last_3:
+            column_names[col] = col
+        
+        display_df = display_df.rename(columns=column_names)
+        
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            height=500
+        )
+        
+        # Summary dengan HIGHLIGHT
+        total_forecast = under_skus_df['Forecast_Qty'].sum()
+        total_po = under_skus_df['PO_Qty'].sum()
+        avg_ratio = under_skus_df['PO_Rofo_Ratio'].mean()
+        selisih_qty = total_po - total_forecast
+        selisih_persen = (selisih_qty / total_forecast * 100) if total_forecast > 0 else 0
+        
+        # TAMBAH: HTML dengan highlight
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%); border-left: 5px solid #F44336; border-radius: 10px; padding: 20px; margin: 20px 0; box-shadow: 0 4px 15px rgba(244, 67, 54, 0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <div style="font-weight: 900; font-size: 18px; color: #C62828;">📉 UNDER FORECAST SUMMARY</div>
+                    <div style="font-size: 13px; color: #D32F2F;">Bulan: {last_month_name}</div>
+                </div>
+                <div style="background: #FFF; padding: 5px 15px; border-radius: 20px; font-weight: bold; color: #F44336; border: 2px solid #F44336;">
+                    {len(under_skus_df)} SKUs
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px;">
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 24px; font-weight: 900; color: #F44336; margin-bottom: 5px;">{avg_ratio:.1f}%</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">Avg PO/Rofo Ratio</div>
+                    <div style="font-size: 11px; color: #999;">Target: 80-120%</div>
+                </div>
                 
-                # Filter available columns
-                available_cols = [col for col in display_cols if col in over_skus_df.columns]
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 22px; font-weight: 900; color: #2E7D32; margin-bottom: 5px;">{total_forecast:,.0f}</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">Total Rofo Qty</div>
+                    <div style="font-size: 11px; color: #999;">Forecast Quantity</div>
+                </div>
                 
-                # Pastikan Product_Name selalu ada
-                if 'Product_Name' not in available_cols and 'Product_Name' in over_skus_df.columns:
-                    available_cols.insert(1, 'Product_Name')
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 22px; font-weight: 900; color: #1565C0; margin-bottom: 5px;">{total_po:,.0f}</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">Total PO Qty</div>
+                    <div style="font-size: 11px; color: #999;">Purchase Order</div>
+                </div>
                 
-                # Format the dataframe
-                display_df = over_skus_df[available_cols].copy()
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 24px; font-weight: 900; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; margin-bottom: 5px;">{selisih_qty:+,.0f}</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">Selisih Qty</div>
+                    <div style="font-size: 11px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: 600;">({selisih_persen:+.1f}%)</div>
+                </div>
                 
-                # Add formatted columns
-                if 'PO_Rofo_Ratio' in display_df.columns:
-                    display_df['PO_Rofo_Ratio'] = display_df['PO_Rofo_Ratio'].apply(lambda x: f"{x:.1f}%")
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 22px; font-weight: 900; color: #FF9800; margin-bottom: 5px;">{(total_po/total_forecast*100 if total_forecast > 0 else 0):.1f}%</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">PO/Rofo %</div>
+                    <div style="font-size: 11px; color: #999;">Overall Ratio</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed rgba(244, 67, 54, 0.3);">
+                <div style="font-size: 13px; color: #666; text-align: center;">
+                    <span style="font-weight: 600;">Total UNDER Forecast SKUs: {len(under_skus_df)}</span> | 
+                    <span style="color: #F44336;">Average PO/Rofo Ratio: {avg_ratio:.1f}%</span> | 
+                    <span style="color: #2E7D32;">Total Forecast: {total_forecast:,.0f}</span> | 
+                    <span style="color: #1565C0;">Total PO: {total_po:,.0f}</span> | 
+                    <span style="color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: 700;">Selisih: {selisih_qty:+,.0f} ({selisih_persen:+.1f}%)</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.success(f"✅ No SKUs with UNDER forecast in {last_month_name}")
+
+with eval_tab2:
+    over_skus_df = last_month_data['over_skus']
+    if not over_skus_df.empty:
+        # Add inventory data
+        if 'inventory_df' in inventory_metrics:
+            inventory_data = inventory_metrics['inventory_df'][['SKU_ID', 'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']]
+            over_skus_df = pd.merge(over_skus_df, inventory_data, on='SKU_ID', how='left')
+        
+        # TAMBAH: Get last 3 months sales data
+        sales_cols_last_3 = []
+        if not df_sales.empty:
+            # Get last 3 months from sales data
+            sales_months = sorted(df_sales['Month'].unique())
+            if len(sales_months) >= 3:
+                last_3_sales_months = sales_months[-3:]
                 
-                if 'Cover_Months' in display_df.columns:
-                    display_df['Cover_Months'] = display_df['Cover_Months'].apply(lambda x: f"{x:.1f}" if x < 999 else "N/A")
+                # Create pivot for last 3 months sales
+                try:
+                    sales_pivot = df_sales[df_sales['Month'].isin(last_3_sales_months)].pivot_table(
+                        index='SKU_ID',
+                        columns='Month',
+                        values='Sales_Qty',
+                        aggfunc='sum',
+                        fill_value=0
+                    ).reset_index()
+                    
+                    # Rename columns to month names
+                    month_rename = {}
+                    for col in sales_pivot.columns:
+                        if isinstance(col, datetime):
+                            month_rename[col] = col.strftime('%b-%Y')
+                    sales_pivot = sales_pivot.rename(columns=month_rename)
+                    
+                    # Merge with over_skus_df
+                    over_skus_df = pd.merge(
+                        over_skus_df,
+                        sales_pivot,
+                        on='SKU_ID',
+                        how='left'
+                    )
+                    
+                    # Get the sales column names
+                    sales_cols_last_3 = [col for col in sales_pivot.columns if isinstance(col, str) and '-' in col]
+                    sales_cols_last_3 = sorted(sales_cols_last_3[-3:])  # Get last 3 months
+                    
+                except Exception as e:
+                    st.warning(f"Tidak bisa menambahkan data sales 3 bulan terakhir: {str(e)}")
+        
+        # Prepare display columns - TAMBAH sales columns
+        display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier', 'Accuracy_Status',
+                      'Forecast_Qty', 'PO_Qty', 'PO_Rofo_Ratio', 
+                      'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
+        
+        # Tambah sales columns jika ada
+        display_cols.extend(sales_cols_last_3)
+        
+        # Filter available columns
+        available_cols = [col for col in display_cols if col in over_skus_df.columns]
+        
+        # Pastikan Product_Name selalu ada
+        if 'Product_Name' not in available_cols and 'Product_Name' in over_skus_df.columns:
+            available_cols.insert(1, 'Product_Name')
+        
+        # Format the dataframe
+        display_df = over_skus_df[available_cols].copy()
+        
+        # Add formatted columns
+        if 'PO_Rofo_Ratio' in display_df.columns:
+            display_df['PO_Rofo_Ratio'] = display_df['PO_Rofo_Ratio'].apply(lambda x: f"{x:.1f}%")
+        
+        if 'Cover_Months' in display_df.columns:
+            display_df['Cover_Months'] = display_df['Cover_Months'].apply(lambda x: f"{x:.1f}" if x < 999 else "N/A")
+        
+        if 'Avg_Monthly_Sales_3M' in display_df.columns:
+            display_df['Avg_Monthly_Sales_3M'] = display_df['Avg_Monthly_Sales_3M'].apply(lambda x: f"{x:.0f}")
+        
+        # Format sales columns
+        for col in sales_cols_last_3:
+            if col in display_df.columns:
+                display_df[col] = display_df[col].apply(lambda x: f"{x:.0f}" if pd.notnull(x) else "0")
+        
+        # Rename columns for display
+        column_names = {
+            'SKU_ID': 'SKU ID',
+            'Product_Name': 'Product Name',
+            'Brand': 'Brand',
+            'SKU_Tier': 'Tier',
+            'Accuracy_Status': 'Status',
+            'Forecast_Qty': 'Forecast Qty',
+            'PO_Qty': 'PO Qty',
+            'PO_Rofo_Ratio': 'PO/Rofo %',
+            'Stock_Qty': 'Stock Available',
+            'Avg_Monthly_Sales_3M': 'Avg Sales (3M)',
+            'Cover_Months': 'Cover (Months)'
+        }
+        
+        # Add sales columns to rename dict
+        for col in sales_cols_last_3:
+            column_names[col] = col
+        
+        display_df = display_df.rename(columns=column_names)
+        
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            height=500
+        )
+        
+        # Summary dengan HIGHLIGHT
+        total_forecast = over_skus_df['Forecast_Qty'].sum()
+        total_po = over_skus_df['PO_Qty'].sum()
+        avg_ratio = over_skus_df['PO_Rofo_Ratio'].mean()
+        selisih_qty = total_po - total_forecast
+        selisih_persen = (selisih_qty / total_forecast * 100) if total_forecast > 0 else 0
+        
+        # TAMBAH: HTML dengan highlight (WARNA BEDA untuk OVER)
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%); border-left: 5px solid #FF9800; border-radius: 10px; padding: 20px; margin: 20px 0; box-shadow: 0 4px 15px rgba(255, 152, 0, 0.2);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <div>
+                    <div style="font-weight: 900; font-size: 18px; color: #EF6C00;">📈 OVER FORECAST SUMMARY</div>
+                    <div style="font-size: 13px; color: #F57C00;">Bulan: {last_month_name}</div>
+                </div>
+                <div style="background: #FFF; padding: 5px 15px; border-radius: 20px; font-weight: bold; color: #FF9800; border: 2px solid #FF9800;">
+                    {len(over_skus_df)} SKUs
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px;">
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 24px; font-weight: 900; color: #FF9800; margin-bottom: 5px;">{avg_ratio:.1f}%</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">Avg PO/Rofo Ratio</div>
+                    <div style="font-size: 11px; color: #999;">Target: 80-120%</div>
+                </div>
                 
-                if 'Avg_Monthly_Sales_3M' in display_df.columns:
-                    display_df['Avg_Monthly_Sales_3M'] = display_df['Avg_Monthly_Sales_3M'].apply(lambda x: f"{x:.0f}")
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 22px; font-weight: 900; color: #2E7D32; margin-bottom: 5px;">{total_forecast:,.0f}</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">Total Rofo Qty</div>
+                    <div style="font-size: 11px; color: #999;">Forecast Quantity</div>
+                </div>
                 
-                # Rename columns for display - WAJIB dengan Product Name
-                column_names = {
-                    'SKU_ID': 'SKU ID',
-                    'Product_Name': 'Product Name',
-                    'Brand': 'Brand',
-                    'SKU_Tier': 'Tier',
-                    'Accuracy_Status': 'Status',
-                    'Forecast_Qty': 'Forecast Qty',
-                    'PO_Qty': 'PO Qty',
-                    'PO_Rofo_Ratio': 'PO/Rofo %',
-                    'Stock_Qty': 'Stock Available',
-                    'Avg_Monthly_Sales_3M': 'Avg Sales (3M)',
-                    'Cover_Months': 'Cover (Months)'
-                }
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 22px; font-weight: 900; color: #1565C0; margin-bottom: 5px;">{total_po:,.0f}</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">Total PO Qty</div>
+                    <div style="font-size: 11px; color: #999;">Purchase Order</div>
+                </div>
                 
-                display_df = display_df.rename(columns=column_names)
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 24px; font-weight: 900; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; margin-bottom: 5px;">{selisih_qty:+,.0f}</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">Selisih Qty</div>
+                    <div style="font-size: 11px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: 600;">({selisih_persen:+.1f}%)</div>
+                </div>
                 
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    height=500
-                )
-                
-                # Summary
-                total_forecast = over_skus_df['Forecast_Qty'].sum()
-                total_po = over_skus_df['PO_Qty'].sum()
-                avg_ratio = over_skus_df['PO_Rofo_Ratio'].mean()
-                
-                st.caption(f"""
-                **Total OVER Forecast SKUs:** {len(over_skus_df)} | 
-                **Average PO/Rofo Ratio:** {avg_ratio:.1f}% | 
-                **Total Forecast:** {total_forecast:,.0f} | 
-                **Total PO:** {total_po:,.0f} | 
-                **Selisih:** {total_po - total_forecast:+,.0f} ({((total_po - total_forecast)/total_forecast*100 if total_forecast > 0 else 0):+.1f}%)
-                """)
-            else:
-                st.success(f"✅ No SKUs with OVER forecast in {last_month_name}")
+                <div style="background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 3px 10px rgba(0,0,0,0.08);">
+                    <div style="font-size: 22px; font-weight: 900; color: #FF9800; margin-bottom: 5px;">{(total_po/total_forecast*100 if total_forecast > 0 else 0):.1f}%</div>
+                    <div style="font-size: 12px; color: #666; font-weight: 600;">PO/Rofo %</div>
+                    <div style="font-size: 11px; color: #999;">Overall Ratio</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed rgba(255, 152, 0, 0.3);">
+                <div style="font-size: 13px; color: #666; text-align: center;">
+                    <span style="font-weight: 600;">Total OVER Forecast SKUs: {len(over_skus_df)}</span> | 
+                    <span style="color: #FF9800;">Average PO/Rofo Ratio: {avg_ratio:.1f}%</span> | 
+                    <span style="color: #2E7D32;">Total Forecast: {total_forecast:,.0f}</span> | 
+                    <span style="color: #1565C0;">Total PO: {total_po:,.0f}</span> | 
+                    <span style="color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: 700;">Selisih: {selisih_qty:+,.0f} ({selisih_persen:+.1f}%)</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.success(f"✅ No SKUs with OVER forecast in {last_month_name}")
 
 st.divider()
 
