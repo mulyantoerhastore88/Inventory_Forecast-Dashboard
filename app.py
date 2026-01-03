@@ -1286,39 +1286,48 @@ if monthly_performance:
                     height=500
                 )
                 
-                # Summary dengan HIGHLIGHT
+                                # Summary dengan HIGHLIGHT
                 total_forecast = under_skus_df['Forecast_Qty'].sum()
                 total_po = under_skus_df['PO_Qty'].sum()
                 avg_ratio = under_skus_df['PO_Rofo_Ratio'].mean()
                 selisih_qty = total_po - total_forecast
                 selisih_persen = (selisih_qty / total_forecast * 100) if total_forecast > 0 else 0
+                po_rofo_pct = (total_po / total_forecast * 100) if total_forecast > 0 else 0
                 
-                # TAMBAH: HTML dengan highlight
-                                # Versi sederhana
-                st.markdown(f"""
+                # Buat HTML content
+                html_content = f"""
                 <div style="background: #FFEBEE; border-left: 5px solid #F44336; padding: 20px; border-radius: 10px; margin: 20px 0;">
                     <h4 style="color: #C62828; margin-top: 0;">📉 UNDER FORECAST SUMMARY - {last_month_name}</h4>
                     
                     <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 24px; color: #F44336; font-weight: bold;">{avg_ratio:.1f}%</div>
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 24px; color: #F44336; font-weight: bold; margin-bottom: 5px;">{avg_ratio:.1f}%</div>
                             <div style="font-size: 12px; color: #666;">Avg PO/Rofo</div>
+                            <div style="font-size: 10px; color: #999;">Target: 80-120%</div>
                         </div>
                         
-                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; color: #2E7D32; font-weight: bold;">{total_forecast:,.0f}</div>
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 22px; color: #2E7D32; font-weight: bold; margin-bottom: 5px;">{total_forecast:,.0f}</div>
                             <div style="font-size: 12px; color: #666;">Total Rofo</div>
+                            <div style="font-size: 10px; color: #999;">Forecast Qty</div>
                         </div>
                         
-                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; color: #1565C0; font-weight: bold;">{total_po:,.0f}</div>
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 22px; color: #1565C0; font-weight: bold; margin-bottom: 5px;">{total_po:,.0f}</div>
                             <div style="font-size: 12px; color: #666;">Total PO</div>
+                            <div style="font-size: 10px; color: #999;">Purchase Order</div>
                         </div>
                         
-                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 24px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: bold;">{selisih_qty:+,.0f}</div>
-                            <div style="font-size: 12px; color: #666;">Selisih</div>
-                            <div style="font-size: 11px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'};">({selisih_persen:+.1f}%)</div>
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 24px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: bold; margin-bottom: 5px;">{selisih_qty:+,.0f}</div>
+                            <div style="font-size: 12px; color: #666;">Selisih Qty</div>
+                            <div style="font-size: 11px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: 600;">({selisih_persen:+.1f}%)</div>
+                        </div>
+                        
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 22px; color: #FF9800; font-weight: bold; margin-bottom: 5px;">{po_rofo_pct:.1f}%</div>
+                            <div style="font-size: 12px; color: #666;">PO/Rofo %</div>
+                            <div style="font-size: 10px; color: #999;">Overall Ratio</div>
                         </div>
                     </div>
                     
@@ -1330,151 +1339,53 @@ if monthly_performance:
                         <span style="color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: bold;">Selisih: {selisih_qty:+,.0f} ({selisih_persen:+.1f}%)</span>
                     </div>
                 </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.success(f"✅ No SKUs with UNDER forecast in {last_month_name}")
-        
-        with eval_tab2:
-            over_skus_df = last_month_data['over_skus']
-            if not over_skus_df.empty:
-                # Add inventory data
-                if 'inventory_df' in inventory_metrics:
-                    inventory_data = inventory_metrics['inventory_df'][['SKU_ID', 'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']]
-                    over_skus_df = pd.merge(over_skus_df, inventory_data, on='SKU_ID', how='left')
+                """
                 
-                # TAMBAH: Get last 3 months sales data
-                sales_cols_last_3 = []
-                if not df_sales.empty:
-                    # Get last 3 months from sales data
-                    sales_months = sorted(df_sales['Month'].unique())
-                    if len(sales_months) >= 3:
-                        last_3_sales_months = sales_months[-3:]
-                        
-                        # Create pivot for last 3 months sales
-                        try:
-                            sales_pivot = df_sales[df_sales['Month'].isin(last_3_sales_months)].pivot_table(
-                                index='SKU_ID',
-                                columns='Month',
-                                values='Sales_Qty',
-                                aggfunc='sum',
-                                fill_value=0
-                            ).reset_index()
-                            
-                            # Rename columns to month names
-                            month_rename = {}
-                            for col in sales_pivot.columns:
-                                if isinstance(col, datetime):
-                                    month_rename[col] = col.strftime('%b-%Y')
-                            sales_pivot = sales_pivot.rename(columns=month_rename)
-                            
-                            # Merge with over_skus_df
-                            over_skus_df = pd.merge(
-                                over_skus_df,
-                                sales_pivot,
-                                on='SKU_ID',
-                                how='left'
-                            )
-                            
-                            # Get the sales column names
-                            sales_cols_last_3 = [col for col in sales_pivot.columns if isinstance(col, str) and '-' in col]
-                            sales_cols_last_3 = sorted(sales_cols_last_3[-3:])  # Get last 3 months
-                            
-                        except Exception as e:
-                            st.warning(f"Tidak bisa menambahkan data sales 3 bulan terakhir: {str(e)}")
+                # Tampilkan dengan st.html() - metode terbaru
+                st.html(html_content)
                 
-                # Prepare display columns - TAMBAH sales columns
-                display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier', 'Accuracy_Status',
-                              'Forecast_Qty', 'PO_Qty', 'PO_Rofo_Ratio', 
-                              'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
-                
-                # Tambah sales columns jika ada
-                display_cols.extend(sales_cols_last_3)
-                
-                # Filter available columns
-                available_cols = [col for col in display_cols if col in over_skus_df.columns]
-                
-                # Pastikan Product_Name selalu ada
-                if 'Product_Name' not in available_cols and 'Product_Name' in over_skus_df.columns:
-                    available_cols.insert(1, 'Product_Name')
-                
-                # Format the dataframe
-                display_df = over_skus_df[available_cols].copy()
-                
-                # Add formatted columns
-                if 'PO_Rofo_Ratio' in display_df.columns:
-                    display_df['PO_Rofo_Ratio'] = display_df['PO_Rofo_Ratio'].apply(lambda x: f"{x:.1f}%")
-                
-                if 'Cover_Months' in display_df.columns:
-                    display_df['Cover_Months'] = display_df['Cover_Months'].apply(lambda x: f"{x:.1f}" if x < 999 else "N/A")
-                
-                if 'Avg_Monthly_Sales_3M' in display_df.columns:
-                    display_df['Avg_Monthly_Sales_3M'] = display_df['Avg_Monthly_Sales_3M'].apply(lambda x: f"{x:.0f}")
-                
-                # Format sales columns
-                for col in sales_cols_last_3:
-                    if col in display_df.columns:
-                        display_df[col] = display_df[col].apply(lambda x: f"{x:.0f}" if pd.notnull(x) else "0")
-                
-                # Rename columns for display
-                column_names = {
-                    'SKU_ID': 'SKU ID',
-                    'Product_Name': 'Product Name',
-                    'Brand': 'Brand',
-                    'SKU_Tier': 'Tier',
-                    'Accuracy_Status': 'Status',
-                    'Forecast_Qty': 'Forecast Qty',
-                    'PO_Qty': 'PO Qty',
-                    'PO_Rofo_Ratio': 'PO/Rofo %',
-                    'Stock_Qty': 'Stock Available',
-                    'Avg_Monthly_Sales_3M': 'Avg Sales (3M)',
-                    'Cover_Months': 'Cover (Months)'
-                }
-                
-                # Add sales columns to rename dict
-                for col in sales_cols_last_3:
-                    column_names[col] = col
-                
-                display_df = display_df.rename(columns=column_names)
-                
-                st.dataframe(
-                    display_df,
-                    use_container_width=True,
-                    height=500
-                )
-                
-                # Summary dengan HIGHLIGHT
+                                # Summary dengan HIGHLIGHT
                 total_forecast = over_skus_df['Forecast_Qty'].sum()
                 total_po = over_skus_df['PO_Qty'].sum()
                 avg_ratio = over_skus_df['PO_Rofo_Ratio'].mean()
                 selisih_qty = total_po - total_forecast
                 selisih_persen = (selisih_qty / total_forecast * 100) if total_forecast > 0 else 0
+                po_rofo_pct = (total_po / total_forecast * 100) if total_forecast > 0 else 0
                 
-                # TAMBAH: HTML dengan highlight (WARNA BEDA untuk OVER)
-                                # Untuk Over Forecast
+                # Buat HTML content untuk OVER
                 html_content_over = f"""
                 <div style="background: #FFF3E0; border-left: 5px solid #FF9800; padding: 20px; border-radius: 10px; margin: 20px 0;">
                     <h4 style="color: #EF6C00; margin-top: 0;">📈 OVER FORECAST SUMMARY - {last_month_name}</h4>
                     
                     <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 24px; color: #FF9800; font-weight: bold;">{avg_ratio:.1f}%</div>
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 24px; color: #FF9800; font-weight: bold; margin-bottom: 5px;">{avg_ratio:.1f}%</div>
                             <div style="font-size: 12px; color: #666;">Avg PO/Rofo</div>
+                            <div style="font-size: 10px; color: #999;">Target: 80-120%</div>
                         </div>
                         
-                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; color: #2E7D32; font-weight: bold;">{total_forecast:,.0f}</div>
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 22px; color: #2E7D32; font-weight: bold; margin-bottom: 5px;">{total_forecast:,.0f}</div>
                             <div style="font-size: 12px; color: #666;">Total Rofo</div>
+                            <div style="font-size: 10px; color: #999;">Forecast Qty</div>
                         </div>
                         
-                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 22px; color: #1565C0; font-weight: bold;">{total_po:,.0f}</div>
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 22px; color: #1565C0; font-weight: bold; margin-bottom: 5px;">{total_po:,.0f}</div>
                             <div style="font-size: 12px; color: #666;">Total PO</div>
+                            <div style="font-size: 10px; color: #999;">Purchase Order</div>
                         </div>
                         
-                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                            <div style="font-size: 24px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: bold;">{selisih_qty:+,.0f}</div>
-                            <div style="font-size: 12px; color: #666;">Selisih</div>
-                            <div style="font-size: 11px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'};">({selisih_persen:+.1f}%)</div>
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 24px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: bold; margin-bottom: 5px;">{selisih_qty:+,.0f}</div>
+                            <div style="font-size: 12px; color: #666;">Selisih Qty</div>
+                            <div style="font-size: 11px; color: {'#F44336' if selisih_qty < 0 else '#2E7D32'}; font-weight: 600;">({selisih_persen:+.1f}%)</div>
+                        </div>
+                        
+                        <div style="flex: 1; min-width: 150px; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                            <div style="font-size: 22px; color: #FF9800; font-weight: bold; margin-bottom: 5px;">{po_rofo_pct:.1f}%</div>
+                            <div style="font-size: 12px; color: #666;">PO/Rofo %</div>
+                            <div style="font-size: 10px; color: #999;">Overall Ratio</div>
                         </div>
                     </div>
                     
@@ -1488,7 +1399,8 @@ if monthly_performance:
                 </div>
                 """
                 
-                st.markdown(html_content_over, unsafe_allow_html=True)
+                # Tampilkan dengan st.html()
+                st.html(html_content_over)
             else:
                 st.success(f"✅ No SKUs with OVER forecast in {last_month_name}")
 
