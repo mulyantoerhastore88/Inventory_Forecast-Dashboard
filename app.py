@@ -1178,7 +1178,7 @@ if monthly_performance:
         # Create tabs for Under and Over SKUs
         eval_tab1, eval_tab2 = st.tabs([f"📉 UNDER Forecast ({last_month_name})", f"📈 OVER Forecast ({last_month_name})"])
         
-        with eval_tab1:
+    with eval_tab1:
     under_skus_df = last_month_data['under_skus']
     if not under_skus_df.empty:
         # Add inventory data
