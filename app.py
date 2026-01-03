@@ -1995,322 +1995,122 @@ with tab5:
         last_month = sales_vs_forecast['last_month']
         last_month_name = last_month.strftime('%b %Y')
         
-        # SECTION 1: MONTHLY TREND CHART (ROFO, PO, SALES + ACCURACY)
+        # SECTION 1: SIMPLE MONTHLY TREND (FIX VERSION)
         st.markdown("### 📊 Monthly Trend: Rofo vs PO vs Sales")
         
-        # Prepare monthly data for trend chart
-        monthly_trend_data = []
+        # Simple chart tanpa dual-axis dulu
+        monthly_data = []
         
-        # Get unique months from all datasets
-        all_months = set()
+        # Get last 6 months data
         if not df_sales.empty:
-            all_months.update(df_sales['Month'].unique())
-        if not df_forecast.empty:
-            all_months.update(df_forecast['Month'].unique())
-        if not df_po.empty:
-            all_months.update(df_po['Month'].unique())
-        
-        if all_months:
-            sorted_months = sorted(all_months)
+            sales_months = sorted(df_sales['Month'].unique())
+            recent_months = sales_months[-6:] if len(sales_months) >= 6 else sales_months
             
-            for month in sorted_months:
+            for month in recent_months:
                 month_name = month.strftime('%b %Y')
-                
-                # Get data for this month
-                rofo_qty = df_forecast[df_forecast['Month'] == month]['Forecast_Qty'].sum() if not df_forecast.empty else 0
+                sales_qty = df_sales[df_sales['Month'] == month]['Sales_Qty'].sum()
+                forecast_qty = df_forecast[df_forecast['Month'] == month]['Forecast_Qty'].sum() if not df_forecast.empty else 0
                 po_qty = df_po[df_po['Month'] == month]['PO_Qty'].sum() if not df_po.empty else 0
-                sales_qty = df_sales[df_sales['Month'] == month]['Sales_Qty'].sum() if not df_sales.empty else 0
                 
-                # Calculate accuracy (only if we have both forecast and PO)
-                if rofo_qty > 0 and po_qty > 0:
-                    accuracy = 100 - abs((po_qty / rofo_qty * 100) - 100)
-                else:
-                    accuracy = 0
-                
-                monthly_trend_data.append({
-                    'Month': month,
-                    'Month_Display': month_name,
-                    'Rofo_Qty': rofo_qty,
-                    'PO_Qty': po_qty,
-                    'Sales_Qty': sales_qty,
-                    'Accuracy_%': accuracy
+                monthly_data.append({
+                    'Month': month_name,
+                    'Sales': sales_qty,
+                    'Forecast': forecast_qty,
+                    'PO': po_qty
                 })
         
-        # Create DataFrame for trend
-        trend_df = pd.DataFrame(monthly_trend_data)
-        
-        if not trend_df.empty:
-            # Sort by month
-            trend_df = trend_df.sort_values('Month')
+        if monthly_data:
+            trend_df = pd.DataFrame(monthly_data)
             
-            # Create dual-axis chart
+            # SIMPLE CHART - tanpa complexity dulu
             fig = go.Figure()
             
-            # Add bars for quantities (left y-axis)
             fig.add_trace(go.Bar(
-                x=trend_df['Month_Display'],
-                y=trend_df['Rofo_Qty'],
-                name='Rofo Qty',
-                marker_color='#667eea',
-                opacity=0.8
+                x=trend_df['Month'],
+                y=trend_df['Forecast'],
+                name='Rofo',
+                marker_color='#667eea'
             ))
             
             fig.add_trace(go.Bar(
-                x=trend_df['Month_Display'],
-                y=trend_df['PO_Qty'],
-                name='PO Qty',
-                marker_color='#FF9800',
-                opacity=0.8
+                x=trend_df['Month'],
+                y=trend_df['PO'],
+                name='PO',
+                marker_color='#FF9800'
             ))
             
             fig.add_trace(go.Bar(
-                x=trend_df['Month_Display'],
-                y=trend_df['Sales_Qty'],
-                name='Sales Qty',
-                marker_color='#4CAF50',
-                opacity=0.8
+                x=trend_df['Month'],
+                y=trend_df['Sales'],
+                name='Sales',
+                marker_color='#4CAF50'
             ))
             
-            # Add line for accuracy (right y-axis)
-            fig.add_trace(go.Scatter(
-                x=trend_df['Month_Display'],
-                y=trend_df['Accuracy_%'],
-                name='Accuracy %',
-                yaxis='y2',
-                mode='lines+markers',
-                line=dict(color='#FF5252', width=3),
-                marker=dict(size=8, color='#FF5252')
-            ))
-            
-            # Update layout - VERSI LEBIH SEDERHANA
+            # SIMPLE LAYOUT - tanpa yaxis2 dulu
             fig.update_layout(
-                height=500,
-                title='Monthly Trend: Rofo vs PO vs Sales (Quantity) & Forecast Accuracy %',
-                title_x=0.5,
+                height=400,
+                title='Monthly Trend: Rofo vs PO vs Sales',
                 xaxis_title='Month',
                 yaxis_title='Quantity',
-                yaxis2=dict(
-                    title='Accuracy %',
-                    titlefont=dict(color='#FF5252'),
-                    tickfont=dict(color='#FF5252'),
-                    overlaying='y',
-                    side='right',
-                    range=[0, 110]
-                ),
-                barmode='group',
-                plot_bgcolor='white'
+                barmode='group'
             )
             
             st.plotly_chart(fig, use_container_width=True)
-            
-            # Summary stats
-            col_t1, col_t2, col_t3, col_t4 = st.columns(4)
-            with col_t1:
-                st.metric("Avg Rofo/Month", f"{trend_df['Rofo_Qty'].mean():,.0f}")
-            with col_t2:
-                st.metric("Avg PO/Month", f"{trend_df['PO_Qty'].mean():,.0f}")
-            with col_t3:
-                st.metric("Avg Sales/Month", f"{trend_df['Sales_Qty'].mean():,.0f}")
-            with col_t4:
-                st.metric("Avg Accuracy", f"{trend_df['Accuracy_%'].mean():.1f}%")
         
-        # SECTION 2: BRAND COMPARISON CHART
+        # SECTION 2: BRAND COMPARISON
         st.divider()
-        st.markdown("### 🏷️ Brand Performance: Rofo vs PO vs Sales")
+        st.markdown("### 🏷️ Brand Performance")
         
-        # Prepare brand comparison data for last month
         if not df_forecast.empty and not df_po.empty and not df_sales.empty:
             # Get last month data
-            forecast_last_month = df_forecast[df_forecast['Month'] == last_month].copy()
-            po_last_month = df_po[df_po['Month'] == last_month].copy()
-            sales_last_month = df_sales[df_sales['Month'] == last_month].copy()
+            forecast_last = df_forecast[df_forecast['Month'] == last_month].copy()
+            po_last = df_po[df_po['Month'] == last_month].copy()
+            sales_last = df_sales[df_sales['Month'] == last_month].copy()
             
-            # Ensure Product_Name exists
-            forecast_last_month = add_product_info_to_data(forecast_last_month, df_product)
-            po_last_month = add_product_info_to_data(po_last_month, df_product)
-            sales_last_month = add_product_info_to_data(sales_last_month, df_product)
-            
-            # Group by Brand
-            brand_forecast = forecast_last_month.groupby('Brand')['Forecast_Qty'].sum().reset_index()
-            brand_po = po_last_month.groupby('Brand')['PO_Qty'].sum().reset_index()
-            brand_sales = sales_last_month.groupby('Brand')['Sales_Qty'].sum().reset_index()
-            
-            # Merge all brand data
-            brand_comparison = pd.merge(brand_forecast, brand_po, on='Brand', how='outer')
-            brand_comparison = pd.merge(brand_comparison, brand_sales, on='Brand', how='outer')
-            brand_comparison = brand_comparison.fillna(0)
-            
-            # Sort by total forecast
-            brand_comparison = brand_comparison.sort_values('Forecast_Qty', ascending=False)
-            
-            # Create brand comparison chart
-            if not brand_comparison.empty and len(brand_comparison) > 0:
-                # Limit to top 10 brands for clarity
-                display_brands = brand_comparison.head(min(10, len(brand_comparison)))
+            # Simple brand comparison
+            if not forecast_last.empty:
+                brand_summary = forecast_last.groupby('Brand')['Forecast_Qty'].sum().reset_index()
+                brand_summary = brand_summary.sort_values('Forecast_Qty', ascending=False).head(10)
                 
-                fig_brand = go.Figure()
-                
-                fig_brand.add_trace(go.Bar(
-                    x=display_brands['Brand'],
-                    y=display_brands['Forecast_Qty'],
-                    name='Rofo Qty',
-                    marker_color='#667eea'
-                ))
-                
-                fig_brand.add_trace(go.Bar(
-                    x=display_brands['Brand'],
-                    y=display_brands['PO_Qty'],
-                    name='PO Qty',
-                    marker_color='#FF9800'
-                ))
-                
-                fig_brand.add_trace(go.Bar(
-                    x=display_brands['Brand'],
-                    y=display_brands['Sales_Qty'],
-                    name='Sales Qty',
-                    marker_color='#4CAF50'
-                ))
-                
-                fig_brand.update_layout(
-                    height=400,
-                    title=f'Brand Comparison - {last_month_name}',
-                    title_x=0.5,
-                    xaxis_title='Brand',
-                    yaxis_title='Quantity',
-                    barmode='group',
-                    plot_bgcolor='white',
-                    showlegend=True
-                )
-                
-                st.plotly_chart(fig_brand, use_container_width=True)
-                
-                # Display brand comparison table
-                st.markdown("##### 📋 Brand Comparison Details")
-                
-                display_table = brand_comparison.copy()
-                display_table['Forecast_Qty'] = display_table['Forecast_Qty'].apply(lambda x: f"{x:,.0f}")
-                display_table['PO_Qty'] = display_table['PO_Qty'].apply(lambda x: f"{x:,.0f}")
-                display_table['Sales_Qty'] = display_table['Sales_Qty'].apply(lambda x: f"{x:,.0f}")
-                
-                column_names = {
-                    'Brand': 'Brand',
-                    'Forecast_Qty': 'Rofo Qty',
-                    'PO_Qty': 'PO Qty',
-                    'Sales_Qty': 'Sales Qty'
-                }
-                
-                display_table = display_table.rename(columns=column_names)
-                
-                st.dataframe(
-                    display_table,
-                    use_container_width=True,
-                    height=300
-                )
+                if not brand_summary.empty:
+                    fig2 = go.Figure(data=[
+                        go.Bar(
+                            x=brand_summary['Brand'],
+                            y=brand_summary['Forecast_Qty'],
+                            marker_color='#667eea'
+                        )
+                    ])
+                    
+                    fig2.update_layout(
+                        height=400,
+                        title=f'Top 10 Brands by Rofo - {last_month_name}',
+                        xaxis_title='Brand',
+                        yaxis_title='Rofo Quantity'
+                    )
+                    
+                    st.plotly_chart(fig2, use_container_width=True)
         
-        # SECTION 3: HIGH DEVIATION SKUs (DIPINDAH KE BAWAH)
+        # SECTION 3: HIGH DEVIATION SKUs
         st.divider()
         st.subheader("⚠️ SKUs with High Deviation (>30%)")
-        
-        # Overview metrics
-        col_s1, col_s2, col_s3 = st.columns(3)
-        
-        with col_s1:
-            st.metric(
-                "Avg Forecast Deviation",
-                f"{sales_vs_forecast['avg_forecast_deviation']:.1f}%",
-                delta=f"Target: < 20%",
-                delta_color="off"
-            )
-        
-        with col_s2:
-            st.metric(
-                "Avg PO Deviation",
-                f"{sales_vs_forecast['avg_po_deviation']:.1f}%",
-                delta=f"Target: < 20%",
-                delta_color="off"
-            )
-        
-        with col_s3:
-            st.metric(
-                "SKUs Compared",
-                sales_vs_forecast['total_skus_compared'],
-                delta=f"High Deviation: {len(sales_vs_forecast['high_deviation_skus'])}",
-                delta_color="off"
-            )
         
         high_dev_df = sales_vs_forecast['high_deviation_skus']
         
         if not high_dev_df.empty:
-            # Prepare display - WAJIB dengan Product_Name
-            display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier',
-                          'Sales_Qty', 'Forecast_Qty', 'PO_Qty',
-                          'Sales_vs_Forecast_Ratio', 'Sales_vs_PO_Ratio',
-                          'Forecast_Deviation', 'PO_Deviation']
+            # Simple display
+            display_cols = ['SKU_ID', 'Product_Name', 'Sales_Qty', 'Forecast_Qty', 'Sales_vs_Forecast_Ratio']
+            display_cols = [col for col in display_cols if col in high_dev_df.columns]
             
-            available_cols = [col for col in display_cols if col in high_dev_df.columns]
-            
-            # Pastikan Product_Name selalu ada
-            if 'Product_Name' not in available_cols and 'Product_Name' in high_dev_df.columns:
-                available_cols.insert(1, 'Product_Name')
-            
-            display_df = high_dev_df[available_cols].copy()
-            
-            # Format percentages
-            percent_cols = ['Sales_vs_Forecast_Ratio', 'Sales_vs_PO_Ratio', 'Forecast_Deviation', 'PO_Deviation']
-            for col in percent_cols:
-                if col in display_df.columns:
-                    display_df[col] = display_df[col].apply(lambda x: f"{x:.1f}%")
-            
-            # Rename columns - WAJIB dengan Product Name
-            column_names = {
-                'SKU_ID': 'SKU ID',
-                'Product_Name': 'Product Name',
-                'Brand': 'Brand',
-                'SKU_Tier': 'Tier',
-                'Sales_Qty': 'Sales Qty',
-                'Forecast_Qty': 'Forecast Qty',
-                'PO_Qty': 'PO Qty',
-                'Sales_vs_Forecast_Ratio': 'Sales/Forecast %',
-                'Sales_vs_PO_Ratio': 'Sales/PO %',
-                'Forecast_Deviation': 'Forecast Dev %',
-                'PO_Deviation': 'PO Dev %'
-            }
-            
-            display_df = display_df.rename(columns=column_names)
-            
-            st.dataframe(
-                display_df,
-                use_container_width=True,
-                height=400
-            )
-            
-            # Analysis
-            st.markdown("#### 📋 Analysis")
-            
-            col_a1, col_a2 = st.columns(2)
-            
-            with col_a1:
-                # Most over-forecast
-                most_over = high_dev_df.loc[high_dev_df['Sales_vs_Forecast_Ratio'].idxmin()]
-                st.info(f"""
-                **Most Over-Forecasted:** {most_over.get('Product_Name', most_over['SKU_ID'])}
-                - Sales/Forecast: {most_over['Sales_vs_Forecast_Ratio']:.1f}%
-                - Forecast: {most_over['Forecast_Qty']:,.0f} | Sales: {most_over['Sales_Qty']:,.0f}
-                """)
-            
-            with col_a2:
-                # Most under-forecast
-                most_under = high_dev_df.loc[high_dev_df['Sales_vs_Forecast_Ratio'].idxmax()]
-                st.warning(f"""
-                **Most Under-Forecasted:** {most_under.get('Product_Name', most_under['SKU_ID'])}
-                - Sales/Forecast: {most_under['Sales_vs_Forecast_Ratio']:.1f}%
-                - Forecast: {most_under['Forecast_Qty']:,.0f} | Sales: {most_under['Sales_Qty']:,.0f}
-                """)
+            if display_cols:
+                simple_df = high_dev_df[display_cols].head(20).copy()
+                simple_df['Sales_vs_Forecast_Ratio'] = simple_df['Sales_vs_Forecast_Ratio'].apply(lambda x: f"{x:.1f}%")
+                
+                st.dataframe(simple_df, use_container_width=True, height=300)
         else:
             st.success(f"✅ No SKUs with high deviation (>30%) in {last_month_name}")
     
     else:
-        st.info("📊 Insufficient data for sales vs forecast comparison")
+        st.info("📊 Insufficient data for analysis")
 
 # --- TAB 6: DATA EXPLORER ---
 with tab6:
