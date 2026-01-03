@@ -1737,7 +1737,6 @@ with tab3:
                 """, unsafe_allow_html=True)
         
         st.divider()
-        
         # Detailed Inventory Table
         st.subheader("📋 Detailed Inventory Status")
         
@@ -1758,65 +1757,65 @@ with tab3:
             )
         
         # Apply filters
-filtered_df = inv_df.copy()
-if status_filter:
-    filtered_df = filtered_df[filtered_df['Inventory_Status'].isin(status_filter)]
-if tier_filter and 'SKU_Tier' in filtered_df.columns:
-    filtered_df = filtered_df[filtered_df['SKU_Tier'].isin(tier_filter)]
+        filtered_df = inv_df.copy()
+        if status_filter:
+            filtered_df = filtered_df[filtered_df['Inventory_Status'].isin(status_filter)]
+        if tier_filter and 'SKU_Tier' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['SKU_Tier'].isin(tier_filter)]
 
-# GUARANTEE PRODUCT_NAME EXISTS - ALWAYS MERGE WITH PRODUCT MASTER
-filtered_df = add_product_info_to_data(filtered_df, df_product)
+        # GUARANTEE PRODUCT_NAME EXISTS - ALWAYS MERGE WITH PRODUCT MASTER
+        filtered_df = add_product_info_to_data(filtered_df, df_product)
 
-# Reapply filters setelah merge (jika diperlukan)
-if status_filter:
-    filtered_df = filtered_df[filtered_df['Inventory_Status'].isin(status_filter)]
-if tier_filter and 'SKU_Tier' in filtered_df.columns:
-    filtered_df = filtered_df[filtered_df['SKU_Tier'].isin(tier_filter)]
+        # Reapply filters setelah merge (jika diperlukan)
+        if status_filter:
+            filtered_df = filtered_df[filtered_df['Inventory_Status'].isin(status_filter)]
+        if tier_filter and 'SKU_Tier' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['SKU_Tier'].isin(tier_filter)]
 
-# Prepare display columns - WAJIB dengan Product_Name
-display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier', 'Inventory_Status', 
-               'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
+        # Prepare display columns - WAJIB dengan Product_Name
+        display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier', 'Inventory_Status', 
+                       'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
 
-available_cols = [col for col in display_cols if col in filtered_df.columns]
+        available_cols = [col for col in display_cols if col in filtered_df.columns]
 
-# Pastikan Product_Name selalu ada
-if 'Product_Name' not in available_cols:
-    # Coba cari kolom serupa
-    product_name_cols = [col for col in filtered_df.columns if 'product' in col.lower() or 'name' in col.lower()]
-    if product_name_cols:
-        available_cols.insert(1, product_name_cols[0])
-    else:
-        available_cols.insert(1, 'Product_Name')
+        # Pastikan Product_Name selalu ada
+        if 'Product_Name' not in available_cols:
+            # Coba cari kolom serupa
+            product_name_cols = [col for col in filtered_df.columns if 'product' in col.lower() or 'name' in col.lower()]
+            if product_name_cols:
+                available_cols.insert(1, product_name_cols[0])
+            else:
+                available_cols.insert(1, 'Product_Name')
 
-# Format the dataframe
-display_df = filtered_df[available_cols].copy()
+        # Format the dataframe
+        display_df = filtered_df[available_cols].copy()
 
-# Add formatted columns
-if 'Cover_Months' in display_df.columns:
-    display_df['Cover_Months'] = display_df['Cover_Months'].apply(lambda x: f"{x:.1f}" if x < 999 else "N/A")
+        # Add formatted columns
+        if 'Cover_Months' in display_df.columns:
+            display_df['Cover_Months'] = display_df['Cover_Months'].apply(lambda x: f"{x:.1f}" if x < 999 else "N/A")
 
-if 'Avg_Monthly_Sales_3M' in display_df.columns:
-    display_df['Avg_Monthly_Sales_3M'] = display_df['Avg_Monthly_Sales_3M'].apply(lambda x: f"{x:.0f}")
+        if 'Avg_Monthly_Sales_3M' in display_df.columns:
+            display_df['Avg_Monthly_Sales_3M'] = display_df['Avg_Monthly_Sales_3M'].apply(lambda x: f"{x:.0f}")
 
-# Rename columns for display - WAJIB dengan Product Name
-column_names = {
-    'SKU_ID': 'SKU ID',
-    'Product_Name': 'Product Name',
-    'Brand': 'Brand',
-    'SKU_Tier': 'Tier',
-    'Inventory_Status': 'Status',
-    'Stock_Qty': 'Stock Available',
-    'Avg_Monthly_Sales_3M': 'Avg Sales (3M)',
-    'Cover_Months': 'Cover (Months)'
-}
+        # Rename columns for display - WAJIB dengan Product Name
+        column_names = {
+            'SKU_ID': 'SKU ID',
+            'Product_Name': 'Product Name',
+            'Brand': 'Brand',
+            'SKU_Tier': 'Tier',
+            'Inventory_Status': 'Status',
+            'Stock_Qty': 'Stock Available',
+            'Avg_Monthly_Sales_3M': 'Avg Sales (3M)',
+            'Cover_Months': 'Cover (Months)'
+        }
 
-# Handle jika nama kolom berbeda
-for col in display_df.columns:
-    if col not in column_names:
-        if 'product' in col.lower() or 'name' in col.lower():
-            column_names[col] = 'Product Name'
+        # Handle jika nama kolom berbeda
+        for col in display_df.columns:
+            if col not in column_names:
+                if 'product' in col.lower() or 'name' in col.lower():
+                    column_names[col] = 'Product Name'
 
-display_df = display_df.rename(columns=column_names)
+        display_df = display_df.rename(columns=column_names)
         
         # Sort by status and cover months
         if 'Cover (Months)' in display_df.columns and 'Status' in display_df.columns:
@@ -1833,7 +1832,7 @@ display_df = display_df.rename(columns=column_names)
         )
         
         # Summary statistics
-        st.caption(f"**Showing {len(filtered_df)} of {len(inv_df)} SKUs** | **Average Cover:** {inv_df[inv_df['Cover_Months'] < 999]['Cover_Months'].mean():.1f} months")
+        st.caption(f"**Showing {len(filtered_df)} of {len(inv_df)} SKUs** | **Average Cover:** {inv_df[inv_df['Cover_Months'] < 999]['Cover_Months'].mean():.1f} months")        
 
 # --- TAB 4: SKU EVALUATION ---
 with tab4:
