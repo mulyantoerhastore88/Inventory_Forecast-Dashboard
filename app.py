@@ -1996,11 +1996,266 @@ with tab4:
         existing_columns = [col for col in column_order if col in eval_df.columns]
         eval_df = eval_df[existing_columns]
         
-        st.dataframe(
+                st.dataframe(
             eval_df,
             use_container_width=True,
             height=600
         )
+        
+        # ================ NEW: SKU DEEP DIVE ANALYSIS ================
+        st.divider()
+        st.subheader("🔬 SKU Deep Dive Analysis")
+        
+        # Pilih SKU untuk deep dive
+        if not last_month_data.empty:
+            # Get unique SKUs for selection
+            available_skus = last_month_data['SKU_ID'].unique().tolist()
+            
+            # Jika ada filter SKU, otomatis select yang difilter
+            selected_sku = None
+            if sku_filter and len(filtered_eval_df) == 1:
+                selected_sku = filtered_eval_df.iloc[0]['SKU_ID']
+            else:
+                # Dropdown untuk pilih SKU
+                sku_options = []
+                for sku in available_skus[:50]:  # Limit to first 50 for performance
+                    product_name = last_month_data[last_month_data['SKU_ID'] == sku]['Product_Name'].iloc[0] if 'Product_Name' in last_month_data.columns else sku
+                    sku_options.append(f"{sku} - {product_name}")
+                
+                if sku_options:
+                    selected_sku_display = st.selectbox(
+                        "📋 Select SKU for Deep Dive Analysis",
+                        options=sku_options,
+                        index=0
+                    )
+                    if selected_sku_display:
+                        selected_sku = selected_sku_display.split(" - ")[0]
+            
+            if selected_sku:
+                st.markdown(f"### 📊 Analysis for SKU: **{selected_sku}**")
+                
+                # Get SKU details
+                sku_details = last_month_data[last_month_data['SKU_ID'] == selected_sku].iloc[0].to_dict() if not last_month_data.empty else {}
+                product_name = sku_details.get('Product_Name', 'N/A')
+                brand = sku_details.get('Brand', 'N/A')
+                tier = sku_details.get('SKU_Tier', 'N/A')
+                
+                # Display SKU info
+                col_info1, col_info2, col_info3, col_info4 = st.columns(4)
+                with col_info1:
+                    st.metric("Product", product_name)
+                with col_info2:
+                    st.metric("Brand", brand)
+                with col_info3:
+                    st.metric("Tier", tier)
+                with col_info4:
+                    stock_qty = sku_details.get('Stock_Qty', 0)
+                    st.metric("Current Stock", f"{stock_qty:,.0f}")
+                
+                # SECTION 1: 12-MONTH PERFORMANCE TIMELINE
+                st.markdown("#### 📈 12-Month Performance Timeline")
+                
+                # Prepare historical data for this SKU
+                historical_data = []
+                
+                # Get last 12 months data
+                if not df_sales.empty:
+                    sales_months = sorted(df_sales['Month'].unique())
+                    last_12_months = sales_months[-12:] if len(sales_months) >= 12 else sales_months
+                    
+                    for month in last_12_months:
+                        month_name = month.strftime('%b-%Y')
+                        
+                        # Get data for this SKU in this month
+                        sales_qty = df_sales[(df_sales['Month'] == month) & 
+                                           (df_sales['SKU_ID'] == selected_sku)]['Sales_Qty'].sum()
+                        
+                        forecast_qty = df_forecast[(df_forecast['Month'] == month) & 
+                                                 (df_forecast['SKU_ID'] == selected_sku)]['Forecast_Qty'].sum() if not df_forecast.empty else 0
+                        
+                        po_qty = df_po[(df_po['Month'] == month) & 
+                                     (df_po['SKU_ID'] == selected_sku)]['PO_Qty'].sum() if not df_po.empty else 0
+                        
+                        # Calculate accuracy if forecast exists
+                        accuracy = 0
+                        if forecast_qty > 0 and po_qty > 0:
+                            accuracy = 100 - abs((po_qty / forecast_qty * 100) - 100)
+                        
+                        historical_data.append({
+                            'Month': month,
+                            'Month_Display': month_name,
+                            'Sales': sales_qty,
+                            'Rofo': forecast_qty,
+                            'PO': po_qty,
+                            'Accuracy': accuracy
+                        })
+                
+                if historical_data:
+                    hist_df = pd.DataFrame(historical_data)
+                    hist_df = hist_df.sort_values('Month')
+                    
+                    # Create dual-axis chart
+                    fig_timeline = go.Figure()
+                    
+                    # Quantity bars (left y-axis)
+                    fig_timeline.add_trace(go.Bar(
+                        x=hist_df['Month_Display'],
+                        y=hist_df['Rofo'],
+                        name='Rofo',
+                        marker_color='#667eea',
+                        opacity=0.7
+                    ))
+                    
+                    fig_timeline.add_trace(go.Bar(
+                        x=hist_df['Month_Display'],
+                        y=hist_df['PO'],
+                        name='PO',
+                        marker_color='#FF9800',
+                        opacity=0.7
+                    ))
+                    
+                    fig_timeline.add_trace(go.Bar(
+                        x=hist_df['Month_Display'],
+                        y=hist_df['Sales'],
+                        name='Sales',
+                        marker_color='#4CAF50',
+                        opacity=0.7
+                    ))
+                    
+                    # Accuracy line (right y-axis)
+                    fig_timeline.add_trace(go.Scatter(
+                        x=hist_df['Month_Display'],
+                        y=hist_df['Accuracy'],
+                        name='Accuracy %',
+                        yaxis='y2',
+                        mode='lines+markers',
+                        line=dict(color='#FF5252', width=3),
+                        marker=dict(size=8, color='#FF5252')
+                    ))
+                    
+                    fig_timeline.update_layout(
+                        height=500,
+                        title=f'<b>12-Month Performance: {selected_sku} - {product_name}</b>',
+                        xaxis_title='<b>Month</b>',
+                        yaxis_title='<b>Quantity</b>',
+                        yaxis2=dict(
+                            title='<b>Accuracy %</b>',
+                            titlefont=dict(color='#FF5252'),
+                            tickfont=dict(color='#FF5252'),
+                            overlaying='y',
+                            side='right',
+                            range=[0, 110]
+                        ),
+                        barmode='group',
+                        plot_bgcolor='white',
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.02,
+                            xanchor="right",
+                            x=1
+                        )
+                    )
+                    
+                    st.plotly_chart(fig_timeline, use_container_width=True)
+                    
+                    # SECTION 2: INVENTORY HEALTH
+                    st.markdown("#### 📦 Inventory Health Analysis")
+                    
+                    col_inv1, col_inv2, col_inv3, col_inv4 = st.columns(4)
+                    
+                    with col_inv1:
+                        # Current stock
+                        current_stock = sku_details.get('Stock_Qty', 0)
+                        st.metric("Current Stock", f"{current_stock:,.0f}")
+                    
+                    with col_inv2:
+                        # Avg monthly sales (3-month average)
+                        avg_sales_3m = sku_details.get('Avg_Monthly_Sales_3M', 0)
+                        st.metric("Avg Monthly Sales (3M)", f"{avg_sales_3m:,.0f}")
+                    
+                    with col_inv3:
+                        # Cover months
+                        cover_months = sku_details.get('Cover_Months', 0)
+                        cover_status = "High Stock" if cover_months > 1.5 else "Ideal" if cover_months >= 0.8 else "Low Stock"
+                        st.metric("Cover (Months)", f"{cover_months:.1f}", delta=cover_status)
+                    
+                    with col_inv4:
+                        # Sales trend (last 3 months vs previous 3 months)
+                        if len(hist_df) >= 6:
+                            recent_sales = hist_df.tail(3)['Sales'].sum()
+                            previous_sales = hist_df.head(3)['Sales'].sum() if len(hist_df) >= 6 else recent_sales
+                            sales_growth = ((recent_sales - previous_sales) / previous_sales * 100) if previous_sales > 0 else 0
+                            st.metric("Sales Growth (3M)", f"{sales_growth:+.1f}%")
+                    
+                    # SECTION 3: FORECAST PERFORMANCE METRICS
+                    st.markdown("#### 🎯 Forecast Performance Metrics")
+                    
+                    # Calculate forecast accuracy metrics
+                    if not hist_df.empty:
+                        # Filter months with forecast > 0
+                        forecast_months = hist_df[hist_df['Rofo'] > 0]
+                        
+                        if not forecast_months.empty:
+                            col_met1, col_met2, col_met3, col_met4 = st.columns(4)
+                            
+                            with col_met1:
+                                # Average accuracy
+                                avg_accuracy = forecast_months['Accuracy'].mean()
+                                accuracy_status = "Good" if avg_accuracy >= 80 else "Needs Improvement"
+                                st.metric("Avg Forecast Accuracy", f"{avg_accuracy:.1f}%", delta=accuracy_status)
+                            
+                            with col_met2:
+                                # Forecast vs Sales ratio
+                                total_forecast = forecast_months['Rofo'].sum()
+                                total_sales = forecast_months['Sales'].sum()
+                                forecast_vs_sales = (total_forecast / total_sales * 100) if total_sales > 0 else 0
+                                st.metric("Forecast/Sales %", f"{forecast_vs_sales:.1f}%")
+                            
+                            with col_met3:
+                                # PO vs Forecast ratio
+                                total_po = forecast_months['PO'].sum()
+                                po_vs_forecast = (total_po / total_forecast * 100) if total_forecast > 0 else 0
+                                st.metric("PO/Forecast %", f"{po_vs_forecast:.1f}%")
+                            
+                            with col_met4:
+                                # Consistency score (std dev of accuracy)
+                                accuracy_std = forecast_months['Accuracy'].std()
+                                consistency_score = max(0, 100 - accuracy_std)
+                                st.metric("Consistency Score", f"{consistency_score:.1f}")
+                            
+                            # Recommendation based on analysis
+                            st.markdown("#### 💡 Recommendations")
+                            
+                            recommendations = []
+                            
+                            # Stock recommendations
+                            if cover_months < 0.8:
+                                recommendations.append("🔄 **Need Replenishment**: Stock cover is below 0.8 months")
+                            elif cover_months > 1.5:
+                                recommendations.append("📉 **Reduce Stock**: High stock coverage (>1.5 months)")
+                            
+                            # Forecast accuracy recommendations
+                            if avg_accuracy < 80:
+                                recommendations.append("🎯 **Improve Forecasting**: Accuracy below 80% target")
+                            
+                            # Sales trend recommendations
+                            if sales_growth < -10:
+                                recommendations.append("📊 **Review Demand**: Sales declining significantly")
+                            elif sales_growth > 50:
+                                recommendations.append("🚀 **Opportunity**: Strong sales growth detected")
+                            
+                            # PO compliance recommendations
+                            if po_vs_forecast < 80:
+                                recommendations.append("📝 **Increase PO Compliance**: PO significantly below forecast")
+                            elif po_vs_forecast > 120:
+                                recommendations.append("⚠️ **Reduce Over-PO**: PO significantly above forecast")
+                            
+                            if recommendations:
+                                for rec in recommendations:
+                                    st.write(f"- {rec}")
+                            else:
+                                st.success("✅ **Excellent**: This SKU is performing well across all metrics!")
     else:
         st.info("📊 Insufficient data for SKU evaluation")
 
