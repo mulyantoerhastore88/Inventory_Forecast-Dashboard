@@ -1179,8 +1179,8 @@ if monthly_performance:
         eval_tab1, eval_tab2 = st.tabs([f"📉 UNDER Forecast ({last_month_name})", f"📈 OVER Forecast ({last_month_name})"])
         
     with eval_tab1:
-    under_skus_df = last_month_data['under_skus']
-    if not under_skus_df.empty:
+        under_skus_df = last_month_data['under_skus']
+        if not under_skus_df.empty:
         # Add inventory data
         if 'inventory_df' in inventory_metrics:
             inventory_data = inventory_metrics['inventory_df'][['SKU_ID', 'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']]
