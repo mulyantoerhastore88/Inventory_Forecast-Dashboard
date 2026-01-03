@@ -1817,6 +1817,7 @@ for col in display_df.columns:
             column_names[col] = 'Product Name'
 
 display_df = display_df.rename(columns=column_names)
+        
         # Sort by status and cover months
         if 'Cover (Months)' in display_df.columns and 'Status' in display_df.columns:
             # Convert back to numeric for sorting
