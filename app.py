@@ -2077,38 +2077,28 @@ with tab5:
                 y=trend_df['Accuracy_%'],
                 name='Accuracy %',
                 yaxis='y2',
-                mode='lines+markers+text',
+                mode='lines+markers',
                 line=dict(color='#FF5252', width=3),
-                marker=dict(size=8, color='#FF5252'),
-                text=trend_df['Accuracy_%'].apply(lambda x: f"{x:.0f}%"),
-                textposition="top center"
+                marker=dict(size=8, color='#FF5252')
             ))
             
-            # Update layout for dual y-axes - INI YANG DIPERBAIKI INDENTASINYA
+            # Update layout - VERSI LEBIH SEDERHANA
             fig.update_layout(
                 height=500,
-                title_text='<b>Monthly Trend: Rofo vs PO vs Sales (Quantity) & Forecast Accuracy %</b>',
+                title='Monthly Trend: Rofo vs PO vs Sales (Quantity) & Forecast Accuracy %',
                 title_x=0.5,
-                xaxis_title='<b>Month</b>',
-                yaxis_title='<b>Quantity</b>',
+                xaxis_title='Month',
+                yaxis_title='Quantity',
                 yaxis2=dict(
-                    title='<b>Accuracy %</b>',
+                    title='Accuracy %',
                     titlefont=dict(color='#FF5252'),
                     tickfont=dict(color='#FF5252'),
                     overlaying='y',
                     side='right',
                     range=[0, 110]
                 ),
-                yaxis=dict(title='<b>Quantity</b>'),
                 barmode='group',
-                plot_bgcolor='white',
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                )
+                plot_bgcolor='white'
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -2150,32 +2140,13 @@ with tab5:
             brand_comparison = pd.merge(brand_comparison, brand_sales, on='Brand', how='outer')
             brand_comparison = brand_comparison.fillna(0)
             
-            # Calculate ratios
-            brand_comparison['PO_vs_Rofo_%'] = np.where(
-                brand_comparison['Forecast_Qty'] > 0,
-                (brand_comparison['PO_Qty'] / brand_comparison['Forecast_Qty']) * 100,
-                0
-            )
-            
-            brand_comparison['Sales_vs_Rofo_%'] = np.where(
-                brand_comparison['Forecast_Qty'] > 0,
-                (brand_comparison['Sales_Qty'] / brand_comparison['Forecast_Qty']) * 100,
-                0
-            )
-            
-            brand_comparison['Sales_vs_PO_%'] = np.where(
-                brand_comparison['PO_Qty'] > 0,
-                (brand_comparison['Sales_Qty'] / brand_comparison['PO_Qty']) * 100,
-                0
-            )
-            
             # Sort by total forecast
             brand_comparison = brand_comparison.sort_values('Forecast_Qty', ascending=False)
             
             # Create brand comparison chart
-            if not brand_comparison.empty:
+            if not brand_comparison.empty and len(brand_comparison) > 0:
                 # Limit to top 10 brands for clarity
-                display_brands = brand_comparison.head(10)
+                display_brands = brand_comparison.head(min(10, len(brand_comparison)))
                 
                 fig_brand = go.Figure()
                 
@@ -2183,35 +2154,29 @@ with tab5:
                     x=display_brands['Brand'],
                     y=display_brands['Forecast_Qty'],
                     name='Rofo Qty',
-                    marker_color='#667eea',
-                    text=display_brands['Forecast_Qty'].apply(lambda x: f"{x:,.0f}"),
-                    textposition='outside'
+                    marker_color='#667eea'
                 ))
                 
                 fig_brand.add_trace(go.Bar(
                     x=display_brands['Brand'],
                     y=display_brands['PO_Qty'],
                     name='PO Qty',
-                    marker_color='#FF9800',
-                    text=display_brands['PO_Qty'].apply(lambda x: f"{x:,.0f}"),
-                    textposition='outside'
+                    marker_color='#FF9800'
                 ))
                 
                 fig_brand.add_trace(go.Bar(
                     x=display_brands['Brand'],
                     y=display_brands['Sales_Qty'],
                     name='Sales Qty',
-                    marker_color='#4CAF50',
-                    text=display_brands['Sales_Qty'].apply(lambda x: f"{x:,.0f}"),
-                    textposition='outside'
+                    marker_color='#4CAF50'
                 ))
                 
                 fig_brand.update_layout(
-                    height=500,
-                    title_text=f'<b>Brand Comparison - {last_month_name}</b>',
+                    height=400,
+                    title=f'Brand Comparison - {last_month_name}',
                     title_x=0.5,
-                    xaxis_title='<b>Brand</b>',
-                    yaxis_title='<b>Quantity</b>',
+                    xaxis_title='Brand',
+                    yaxis_title='Quantity',
                     barmode='group',
                     plot_bgcolor='white',
                     showlegend=True
@@ -2226,18 +2191,12 @@ with tab5:
                 display_table['Forecast_Qty'] = display_table['Forecast_Qty'].apply(lambda x: f"{x:,.0f}")
                 display_table['PO_Qty'] = display_table['PO_Qty'].apply(lambda x: f"{x:,.0f}")
                 display_table['Sales_Qty'] = display_table['Sales_Qty'].apply(lambda x: f"{x:,.0f}")
-                display_table['PO_vs_Rofo_%'] = display_table['PO_vs_Rofo_%'].apply(lambda x: f"{x:.1f}%")
-                display_table['Sales_vs_Rofo_%'] = display_table['Sales_vs_Rofo_%'].apply(lambda x: f"{x:.1f}%")
-                display_table['Sales_vs_PO_%'] = display_table['Sales_vs_PO_%'].apply(lambda x: f"{x:.1f}%")
                 
                 column_names = {
                     'Brand': 'Brand',
                     'Forecast_Qty': 'Rofo Qty',
                     'PO_Qty': 'PO Qty',
-                    'Sales_Qty': 'Sales Qty',
-                    'PO_vs_Rofo_%': 'PO/Rofo %',
-                    'Sales_vs_Rofo_%': 'Sales/Rofo %',
-                    'Sales_vs_PO_%': 'Sales/PO %'
+                    'Sales_Qty': 'Sales Qty'
                 }
                 
                 display_table = display_table.rename(columns=column_names)
