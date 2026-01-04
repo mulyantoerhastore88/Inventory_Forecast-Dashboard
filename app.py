@@ -2204,44 +2204,67 @@ with tab4:
                     st.markdown("#### 🎯 Forecast Performance Metrics")
                     
                     # Calculate forecast accuracy metrics
-                    if not hist_df.empty:
-                        # Filter months with forecast > 0
-                        forecast_months = hist_df[hist_df['Rofo'] > 0]
+                    if not df_forecast.empty and not df_po.empty:
+                        # Get accuracy data separately
+                        accuracy_data = []
+                        for month in last_12_months:
+                            forecast_qty = df_forecast[(df_forecast['Month'] == month) & 
+                                                     (df_forecast['SKU_ID'] == selected_sku)]['Forecast_Qty'].sum()
+                            po_qty = df_po[(df_po['Month'] == month) & 
+                                         (df_po['SKU_ID'] == selected_sku)]['PO_Qty'].sum()
+                            
+                            if forecast_qty > 0 and po_qty > 0:
+                                accuracy = 100 - abs((po_qty / forecast_qty * 100) - 100)
+                                accuracy_data.append({
+                                    'Month': month,
+                                    'Forecast_Qty': forecast_qty,
+                                    'PO_Qty': po_qty,
+                                    'Accuracy': accuracy
+                                })
                         
-                        if not forecast_months.empty:
+                        if accuracy_data:
+                            acc_df = pd.DataFrame(accuracy_data)
+                            
                             col_met1, col_met2, col_met3, col_met4 = st.columns(4)
                             
                             with col_met1:
                                 # Average accuracy
-                                avg_accuracy = forecast_months['Accuracy'].mean()
+                                avg_accuracy = acc_df['Accuracy'].mean()
                                 accuracy_status = "Good" if avg_accuracy >= 80 else "Needs Improvement"
                                 st.metric("Avg Forecast Accuracy", f"{avg_accuracy:.1f}%", delta=accuracy_status)
                             
                             with col_met2:
                                 # Forecast vs Sales ratio
-                                total_forecast = forecast_months['Rofo'].sum()
-                                total_sales = forecast_months['Sales'].sum()
+                                total_forecast = acc_df['Forecast_Qty'].sum()
+                                # Get total sales for same months
+                                total_sales = 0
+                                for month in acc_df['Month']:
+                                    sales_qty = df_sales[(df_sales['Month'] == month) & 
+                                                       (df_sales['SKU_ID'] == selected_sku)]['Sales_Qty'].sum()
+                                    total_sales += sales_qty
+                                
                                 forecast_vs_sales = (total_forecast / total_sales * 100) if total_sales > 0 else 0
                                 st.metric("Forecast/Sales %", f"{forecast_vs_sales:.1f}%")
                             
                             with col_met3:
                                 # PO vs Forecast ratio
-                                total_po = forecast_months['PO'].sum()
+                                total_po = acc_df['PO_Qty'].sum()
                                 po_vs_forecast = (total_po / total_forecast * 100) if total_forecast > 0 else 0
                                 st.metric("PO/Forecast %", f"{po_vs_forecast:.1f}%")
                             
                             with col_met4:
                                 # Consistency score (std dev of accuracy)
-                                accuracy_std = forecast_months['Accuracy'].std()
+                                accuracy_std = acc_df['Accuracy'].std()
                                 consistency_score = max(0, 100 - accuracy_std)
                                 st.metric("Consistency Score", f"{consistency_score:.1f}")
                             
-                            # Recommendation based on analysis
+                            # SECTION 4: RECOMMENDATIONS
                             st.markdown("#### 💡 Recommendations")
                             
                             recommendations = []
                             
                             # Stock recommendations
+                            cover_months = sku_details.get('Cover_Months', 0)
                             if cover_months < 0.8:
                                 recommendations.append("🔄 **Need Replenishment**: Stock cover is below 0.8 months")
                             elif cover_months > 1.5:
@@ -2252,6 +2275,12 @@ with tab4:
                                 recommendations.append("🎯 **Improve Forecasting**: Accuracy below 80% target")
                             
                             # Sales trend recommendations
+                            sales_growth = 0  # Calculate sales growth
+                            if len(hist_df) >= 6:
+                                recent_sales = hist_df.tail(3)['Sales'].sum()
+                                previous_sales = hist_df.head(3)['Sales'].sum()
+                                sales_growth = ((recent_sales - previous_sales) / previous_sales * 100) if previous_sales > 0 else 0
+                            
                             if sales_growth < -10:
                                 recommendations.append("📊 **Review Demand**: Sales declining significantly")
                             elif sales_growth > 50:
@@ -2268,8 +2297,8 @@ with tab4:
                                     st.write(f"- {rec}")
                             else:
                                 st.success("✅ **Excellent**: This SKU is performing well across all metrics!")
-                else:
-                    st.warning("No historical data available for this SKU")
+                        else:
+                            st.info("No forecast accuracy data available for this SKU")
     else:
         st.info("📊 Insufficient data for SKU evaluation")
 
