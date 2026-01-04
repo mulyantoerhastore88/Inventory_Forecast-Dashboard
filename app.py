@@ -1579,7 +1579,7 @@ with tab1:
             height=400
         )
 
-# --- DI DALAM TAB 2: FORECAST PERFORMANCE BY BRAND & TIER ANALYSIS ---
+# --- TAB 2: FORECAST PERFORMANCE BY BRAND & TIER ANALYSIS ---
 with tab2:
     # Brand Performance Analysis
     st.subheader("🏷️ Forecast Performance by Brand")
@@ -1678,48 +1678,145 @@ with tab2:
         )
         
         # ================ GROUPED BAR CHART SECTION ================
-st.divider()
-st.subheader("📊 Brand Performance Comparison (Horizontal)")
-
-if last_month and 'comparison_df' in locals() and not comparison_df.empty:
-    # Pivot data untuk horizontal bar
-    melted_df = comparison_df.melt(
-        id_vars=['Brand'], 
-        value_vars=['Rofo', 'PO', 'Sales'],
-        var_name='Metric', 
-        value_name='Quantity'
-    )
-    
-    # Buat horizontal grouped bar chart
-    fig = px.bar(
-        melted_df,
-        y='Brand',
-        x='Quantity',
-        color='Metric',
-        orientation='h',
-        barmode='group',
-        color_discrete_map={
-            'Rofo': '#667eea',
-            'PO': '#FF9800',
-            'Sales': '#4CAF50'
-        },
-        title=f'Brand Performance - {last_month.strftime("%b %Y")}',
-        labels={'Quantity': 'Quantity', 'Brand': 'Brand', 'Metric': 'Metric'}
-    )
-    
-    fig.update_layout(
-        height=max(300, len(comparison_df) * 40),  # Otomatis adjust height berdasarkan jumlah brand
-        yaxis={'categoryorder': 'total ascending'},
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=1.02,
-            xanchor="right",
-            x=1
-        )
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
+        st.divider()
+        st.subheader("📊 Brand Performance Comparison")
+        
+        # PENTING: Cari bulan terakhir yang ADA DATA SALES-nya
+        sales_months = sorted(df_sales['Month'].unique()) if not df_sales.empty else []
+        forecast_months = sorted(df_forecast['Month'].unique()) if not df_forecast.empty else []
+        po_months = sorted(df_po['Month'].unique()) if not df_po.empty else []
+        
+        # Cari bulan terakhir yang ADA di ketiga dataset
+        common_months = sorted(set(sales_months) & set(forecast_months) & set(po_months))
+        if common_months:
+            last_month = common_months[-1]
+        else:
+            # Kalau ngga ada bulan yang sama, ambil bulan terakhir dari forecast saja
+            last_month = forecast_months[-1] if forecast_months else None
+        
+        if last_month:
+            st.caption(f"📅 Data untuk bulan: {last_month.strftime('%b %Y')}")
+            
+            # Get data untuk bulan terakhir
+            df_forecast_last = df_forecast[df_forecast['Month'] == last_month]
+            df_po_last = df_po[df_po['Month'] == last_month]
+            df_sales_last = df_sales[df_sales['Month'] == last_month]
+            
+            # Debug info
+            st.caption(f"Forecast SKUs: {len(df_forecast_last)} | PO SKUs: {len(df_po_last)} | Sales SKUs: {len(df_sales_last)}")
+            
+            # Add product info
+            df_forecast_last = add_product_info_to_data(df_forecast_last, df_product)
+            df_po_last = add_product_info_to_data(df_po_last, df_product)
+            df_sales_last = add_product_info_to_data(df_sales_last, df_product)
+            
+            if 'Brand' in df_forecast_last.columns:
+                # Get UNIQUE BRANDS dari semua dataset
+                forecast_brands = set(df_forecast_last['Brand'].dropna().unique())
+                po_brands = set(df_po_last['Brand'].dropna().unique()) if 'Brand' in df_po_last.columns else set()
+                sales_brands = set(df_sales_last['Brand'].dropna().unique()) if 'Brand' in df_sales_last.columns else set()
+                
+                # Gabungkan semua brand
+                all_brands = forecast_brands.union(po_brands).union(sales_brands)
+                
+                brand_comparison = []
+                
+                for brand in sorted(all_brands):
+                    # Forecast
+                    rofo_qty = df_forecast_last[df_forecast_last['Brand'] == brand]['Forecast_Qty'].sum()
+                    
+                    # PO
+                    po_qty = df_po_last[df_po_last['Brand'] == brand]['PO_Qty'].sum() if 'Brand' in df_po_last.columns else 0
+                    
+                    # Sales
+                    sales_qty = 0
+                    if not df_sales_last.empty and 'Brand' in df_sales_last.columns:
+                        sales_qty = df_sales_last[df_sales_last['Brand'] == brand]['Sales_Qty'].sum()
+                    
+                    brand_comparison.append({
+                        'Brand': brand,
+                        'Rofo': rofo_qty,
+                        'PO': po_qty,
+                        'Sales': sales_qty,
+                        'PO_Rofo_Ratio': (po_qty / rofo_qty * 100) if rofo_qty > 0 else 0
+                    })
+                
+                comparison_df = pd.DataFrame(brand_comparison)
+                
+                # TAMPILKAN SEMUA BRAND (tanpa .head())
+                comparison_df = comparison_df.sort_values('Rofo', ascending=False)
+                
+                # Tampilkan jumlah brand
+                st.caption(f"📊 Menampilkan {len(comparison_df)} brand")
+                
+                # Cek apakah ada data Sales
+                total_sales = comparison_df['Sales'].sum()
+                
+                if total_sales > 0:
+                    # Buat chart dengan 3 bar (Rofo, PO, Sales)
+                    fig = go.Figure()
+                    
+                    fig.add_trace(go.Bar(
+                        x=comparison_df['Brand'],
+                        y=comparison_df['Rofo'],
+                        name='Rofo',
+                        marker_color='#667eea',
+                        hovertemplate='<b>%{x}</b><br>Rofo: %{y:,.0f}<extra></extra>'
+                    ))
+                    
+                    fig.add_trace(go.Bar(
+                        x=comparison_df['Brand'],
+                        y=comparison_df['PO'],
+                        name='PO',
+                        marker_color='#FF9800',
+                        hovertemplate='<b>%{x}</b><br>PO: %{y:,.0f}<extra></extra>'
+                    ))
+                    
+                    fig.add_trace(go.Bar(
+                        x=comparison_df['Brand'],
+                        y=comparison_df['Sales'],
+                        name='Sales',
+                        marker_color='#4CAF50',
+                        hovertemplate='<b>%{x}</b><br>Sales: %{y:,.0f}<extra></extra>'
+                    ))
+                    
+                    chart_title = f'Brand Performance - {last_month.strftime("%b %Y")} (Rofo vs PO vs Sales)'
+                else:
+                    # Kalau ngga ada Sales, tampilkan cuma Rofo vs PO
+                    st.info("ℹ️ Data Sales tidak tersedia untuk bulan ini, menampilkan Rofo vs PO saja")
+                    
+                    fig = go.Figure()
+                    
+                    fig.add_trace(go.Bar(
+                        x=comparison_df['Brand'],
+                        y=comparison_df['Rofo'],
+                        name='Rofo',
+                        marker_color='#667eea',
+                        hovertemplate='<b>%{x}</b><br>Rofo: %{y:,.0f}<extra></extra>'
+                    ))
+                    
+                    fig.add_trace(go.Bar(
+                        x=comparison_df['Brand'],
+                        y=comparison_df['PO'],
+                        name='PO',
+                        marker_color='#FF9800',
+                        hovertemplate='<b>%{x}</b><br>PO: %{y:,.0f}<extra></extra>'
+                    ))
+                    
+                    chart_title = f'Brand Performance - {last_month.strftime("%b %Y")} (Rofo vs PO)'
+                
+                fig.update_layout(
+                    height=500,
+                    title=chart_title,
+                    xaxis_title='Brand',
+                    yaxis_title='Quantity',
+                    barmode='group',
+                    hovermode='x unified',
+                    plot_bgcolor='white',
+                    xaxis={'categoryorder': 'total descending'}
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
         
         # ================ ACCURACY VISUALIZATION SECTION ================
         st.divider()
@@ -1732,9 +1829,14 @@ if last_month and 'comparison_df' in locals() and not comparison_df.empty:
             if 'comparison_df' in locals() and not comparison_df.empty:
                 top_brand = comparison_df.iloc[0]
                 
+                # Hitung accuracy untuk top brand
+                top_accuracy = 0
+                if top_brand['Rofo'] > 0:
+                    top_accuracy = 100 - abs(top_brand['PO_Rofo_Ratio'] - 100)
+                
                 fig_gauge = go.Figure(go.Indicator(
                     mode="gauge+number+delta",
-                    value=top_brand['Accuracy'],
+                    value=top_accuracy,
                     domain={'x': [0, 1], 'y': [0, 1]},
                     title={'text': f"Top Brand: {top_brand['Brand']}"},
                     delta={'reference': 80, 'increasing': {'color': "green"}},
@@ -1760,6 +1862,12 @@ if last_month and 'comparison_df' in locals() and not comparison_df.empty:
         with col2:
             # Horizontal bar chart for accuracy ranking
             if 'comparison_df' in locals() and not comparison_df.empty:
+                # Hitung accuracy untuk semua brand
+                comparison_df['Accuracy'] = comparison_df.apply(
+                    lambda row: 100 - abs(row['PO_Rofo_Ratio'] - 100) if row['Rofo'] > 0 else 0,
+                    axis=1
+                )
+                
                 accuracy_sorted = comparison_df.sort_values('Accuracy', ascending=True)
                 
                 fig_accuracy = go.Figure()
@@ -1806,7 +1914,7 @@ if last_month and 'comparison_df' in locals() and not comparison_df.empty:
             })
         
         status_df = pd.DataFrame(status_data)
-        status_df = status_df.sort_values('Accurate', ascending=False).head(10)
+        status_df = status_df.sort_values('Accurate', ascending=False)
         
         fig_heatmap = go.Figure()
         
@@ -1822,7 +1930,7 @@ if last_month and 'comparison_df' in locals() and not comparison_df.empty:
         
         fig_heatmap.update_layout(
             height=400,
-            title='Brand Performance Distribution (Top 10 by Accuracy)',
+            title='Brand Performance Distribution',
             xaxis_title='Brand',
             yaxis_title='Performance Status'
         )
