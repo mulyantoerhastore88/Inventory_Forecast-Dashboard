@@ -2269,7 +2269,7 @@ with tab2:
         
         # ================ FINANCIAL ANALYSIS PER BRAND ================
         st.divider()
-        st.subheader("💰 Brand Financial Performance")
+        st.subheader("💰 Brand - Forecast Amount")
         
         if not df_financial.empty:
             brand_financial = df_financial.groupby('Brand').agg({
