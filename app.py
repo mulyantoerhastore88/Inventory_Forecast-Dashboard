@@ -5358,48 +5358,62 @@ with tab9:
         with metric_container:
             col1, col2, col3, col4 = st.columns(4)
             
+            # Data untuk bulan Jan 26
+            jan_26_data = {}
+            
+            # 1. Rofo Jan 26
+            rofo_jan26 = 0
+            if not df_past_rofo_reseller.empty:
+                rofo_jan26 = df_past_rofo_reseller[
+                    df_past_rofo_reseller['Month_Label'].str.contains('Jan 26', na=False)
+                ]['Forecast_Qty'].sum()
+            
+            # 2. Sales Jan 26
+            sales_jan26 = 0
+            if not df_sales_reseller.empty:
+                sales_jan26 = df_sales_reseller[
+                    df_sales_reseller['Month_Label'].str.contains('Jan 26', na=False)
+                ]['Sales_Qty'].sum()
+            
+            # 3. PO Jan 26
+            po_jan26 = 0
+            if not df_past_po_reseller.empty:
+                po_jan26 = df_past_po_reseller[
+                    df_past_po_reseller['Month_Label'].str.contains('Jan 26', na=False)
+                ]['PO_Qty'].sum()
+            
+            # 4. Active SKUs - jumlah SKU unik di forecast 2026
+            active_skus = len(df_reseller_forecast) if not df_reseller_forecast.empty else 0
+            
+            # 5. Accuracy Jan 26
+            accuracy_jan26 = 0
+            if rofo_jan26 > 0:
+                accuracy_jan26 = 100 - abs((po_jan26 / rofo_jan26 * 100) - 100)
+            
             with col1:
-                # Total Active SKUs (Reseller)
-                total_skus_res = len(df_reseller_forecast) if not df_reseller_forecast.empty else 0
-                st.metric("Active SKUs", f"{total_skus_res:,}")
+                st.metric("Rofo Jan 26", f"{rofo_jan26:,.0f}")
             
             with col2:
-                # Total Forecast 2026
-                total_forecast_2026 = df_reseller_forecast[reseller_forecast_cols].sum().sum() if not df_reseller_forecast.empty and reseller_forecast_cols else 0
-                st.metric("Forecast 2026", f"{total_forecast_2026:,.0f}")
+                st.metric("Sales Jan 26", f"{sales_jan26:,.0f}")
             
             with col3:
-                # Sales Jan 26
-                jan26_sales = 0
-                if not df_sales_reseller.empty:
-                    # Cari bulan Jan 26
-                    for idx, row in df_sales_reseller.iterrows():
-                        if 'Jan 26' in str(row.get('Month_Label', '')):
-                            jan26_sales += row.get('Sales_Qty', 0)
-                st.metric("Sales Jan 26", f"{jan26_sales:,.0f}")
+                st.metric("PO Jan 26", f"{po_jan26:,.0f}")
             
             with col4:
-                # Accuracy Rate (jika ada data)
-                accuracy = 0
-                if not df_past_rofo_reseller.empty and not df_past_po_reseller.empty:
-                    # Hitung accuracy untuk Jan 26
-                    rofo_jan = 0
-                    po_jan = 0
-                    
-                    for idx, row in df_past_rofo_reseller.iterrows():
-                        if 'Jan 26' in str(row.get('Month_Label', '')):
-                            rofo_jan += row.get('Forecast_Qty', 0)
-                    
-                    for idx, row in df_past_po_reseller.iterrows():
-                        if 'Jan 26' in str(row.get('Month_Label', '')):
-                            po_jan += row.get('PO_Qty', 0)
-                    
-                    if rofo_jan > 0 and po_jan > 0:
-                        accuracy = (min(rofo_jan, po_jan) / max(rofo_jan, po_jan) * 100)
-                
-                st.metric("Jan 26 Accuracy", f"{accuracy:.1f}%")
+                st.metric("Active SKUs", f"{active_skus:,}")
+            
+            # Baris kedua untuk accuracy
+            col5, col6 = st.columns(2)
+            
+            with col5:
+                st.metric("Jan 26 Accuracy", f"{accuracy_jan26:.1f}%")
+            
+            with col6:
+                # Calculate average sales per active SKU
+                avg_sales_per_sku = sales_jan26 / active_skus if active_skus > 0 else 0
+                st.metric("Avg Sales/SKU", f"{avg_sales_per_sku:.1f}")
         
-        # ROW 2: Triple Comparison Chart
+        # ROW 2: Triple Comparison Chart - FIXED MONTH ORDER
         st.divider()
         st.subheader("📈 Triple Comparison: Forecast vs PO vs Sales")
         
@@ -5422,7 +5436,37 @@ with tab9:
             if 'Month_Label' in df_past_po_reseller.columns:
                 all_months_set.update(df_past_po_reseller['Month_Label'].unique())
             
-            for month_label in sorted(all_months_set):
+            # Parse bulan untuk sorting
+            month_data = []
+            for month_label in all_months_set:
+                try:
+                    # Convert month label to datetime for sorting
+                    month_str = str(month_label).strip()
+                    if ' ' in month_str:
+                        month_part, year_part = month_str.split(' ')
+                        month_date = datetime.strptime(f"{month_part[:3]}-{year_part}", "%b-%y")
+                    elif '-' in month_str:
+                        month_part, year_part = month_str.split('-')
+                        month_date = datetime.strptime(f"{month_part[:3]}-{year_part}", "%b-%y")
+                    else:
+                        continue
+                    
+                    month_data.append({
+                        'label': month_label,
+                        'date': month_date,
+                        'display': month_date.strftime('%b-%y')
+                    })
+                except:
+                    continue
+            
+            # Sort by date
+            month_data.sort(key=lambda x: x['date'])
+            
+            # Collect data for sorted months
+            for month_info in month_data:
+                month_label = month_info['label']
+                month_display = month_info['display']
+                
                 # Sales
                 sales_qty = df_sales_reseller[df_sales_reseller['Month_Label'] == month_label]['Sales_Qty'].sum()
                 
@@ -5437,7 +5481,8 @@ with tab9:
                     continue
                 
                 monthly_comparison.append({
-                    'Month': month_label,
+                    'Month': month_display,
+                    'Month_Date': month_info['date'],
                     'Sales': sales_qty,
                     'Rofo': rofo_qty,
                     'PO': po_qty
@@ -5445,6 +5490,7 @@ with tab9:
             
             if monthly_comparison:
                 comp_df = pd.DataFrame(monthly_comparison)
+                comp_df = comp_df.sort_values('Month_Date')
                 
                 fig = go.Figure()
                 
@@ -5487,7 +5533,7 @@ with tab9:
         else:
             st.info("ℹ️ Need sales, rofo, and PO data for comparison analysis")
         
-        # ROW 3: Brand Performance Matrix
+        # ROW 3: Brand Performance Matrix - SIMPLE BAR CHART
         st.divider()
         st.subheader("🏷️ Top Performing Brands (Reseller)")
         
@@ -5522,7 +5568,7 @@ with tab9:
                 brand_df = pd.DataFrame(brand_performance)
                 brand_df = brand_df.sort_values('Forecast_2026', ascending=False).head(10)
                 
-                # Create dual-axis chart
+                # Simple Bar Chart (tidak kombinasi line)
                 fig_brand = go.Figure()
                 
                 # Bar: Forecast 2026
@@ -5531,30 +5577,15 @@ with tab9:
                     y=brand_df['Forecast_2026'],
                     name='Forecast 2026',
                     marker_color='#667eea',
-                    yaxis='y'
-                ))
-                
-                # Line: Sales Jan 26
-                fig_brand.add_trace(go.Scatter(
-                    x=brand_df['Brand'],
-                    y=brand_df['Sales_Jan26'],
-                    name='Sales Jan 26',
-                    mode='lines+markers',
-                    line=dict(color='#FF5252', width=3),
-                    marker=dict(size=8),
-                    yaxis='y2'
+                    text=[f"{x:,.0f}" for x in brand_df['Forecast_2026']],
+                    textposition='auto'
                 ))
                 
                 fig_brand.update_layout(
                     height=400,
-                    title='Top 10 Brands: Forecast 2026 vs Sales Jan 26',
+                    title='Top 10 Brands by Forecast 2026',
                     xaxis_title='Brand',
-                    yaxis=dict(title='Forecast 2026 (units)'),
-                    yaxis2=dict(
-                        title='Sales Jan 26 (units)',
-                        overlaying='y',
-                        side='right'
-                    ),
+                    yaxis_title='Forecast Quantity',
                     hovermode='x unified'
                 )
                 
@@ -5569,8 +5600,8 @@ with tab9:
             accuracy_data = []
             
             # Cari SKU yang ada di Jan 26
-            rofo_jan26 = df_past_rofo_reseller[df_past_rofo_reseller['Month_Label'].str.contains('Jan 26')]
-            po_jan26 = df_past_po_reseller[df_past_po_reseller['Month_Label'].str.contains('Jan 26')]
+            rofo_jan26 = df_past_rofo_reseller[df_past_rofo_reseller['Month_Label'].str.contains('Jan 26', na=False)]
+            po_jan26 = df_past_po_reseller[df_past_po_reseller['Month_Label'].str.contains('Jan 26', na=False)]
             
             # Gabungkan SKU yang ada di kedua dataset
             common_skus = set(rofo_jan26['SKU_ID']).intersection(set(po_jan26['SKU_ID']))
@@ -5583,9 +5614,10 @@ with tab9:
                     accuracy = (min(rofo_qty, po_qty) / max(rofo_qty, po_qty) * 100)
                     status = 'Accurate' if accuracy >= 80 else 'Under' if po_qty < rofo_qty else 'Over'
                     
-                    # Get brand dan product info
+                    # Get brand, product info, dan sales
                     brand = ''
                     product = ''
+                    sales_qty = 0
                     
                     # Cari dari rofo data
                     sku_rofo_data = rofo_jan26[rofo_jan26['SKU_ID'] == sku]
@@ -5593,12 +5625,21 @@ with tab9:
                         brand = sku_rofo_data.iloc[0].get('Brand', '')
                         product = sku_rofo_data.iloc[0].get('Product_Name', '')
                     
+                    # Cari sales untuk SKU ini di Jan 26
+                    if not df_sales_reseller.empty:
+                        sales_data = df_sales_reseller[
+                            (df_sales_reseller['SKU_ID'] == sku) & 
+                            (df_sales_reseller['Month_Label'].str.contains('Jan 26', na=False))
+                        ]
+                        sales_qty = sales_data['Sales_Qty'].sum() if not sales_data.empty else 0
+                    
                     accuracy_data.append({
                         'SKU_ID': sku,
                         'Brand': brand,
                         'Product_Name': product,
                         'Rofo_Qty': rofo_qty,
                         'PO_Qty': po_qty,
+                        'Sales_Qty': sales_qty,  # TAMBAHKAN INI
                         'Accuracy': accuracy,
                         'Status': status,
                         'Variance': po_qty - rofo_qty,
@@ -5653,48 +5694,12 @@ with tab9:
                 
                 st.plotly_chart(fig_dist, use_container_width=True)
                 
-                # Accuracy by Brand
-                st.divider()
-                st.subheader("🏷️ Accuracy by Brand")
-                
-                if 'Brand' in accuracy_df.columns and not accuracy_df['Brand'].isna().all():
-                    brand_accuracy = accuracy_df.groupby('Brand').agg({
-                        'SKU_ID': 'count',
-                        'Accuracy': 'mean',
-                        'Rofo_Qty': 'sum',
-                        'PO_Qty': 'sum'
-                    }).reset_index()
-                    
-                    brand_accuracy.columns = ['Brand', 'SKU_Count', 'Avg_Accuracy', 'Total_Rofo', 'Total_PO']
-                    brand_accuracy = brand_accuracy.sort_values('Avg_Accuracy', ascending=False)
-                    
-                    fig_brand_acc = go.Figure()
-                    
-                    fig_brand_acc.add_trace(go.Bar(
-                        x=brand_accuracy['Brand'],
-                        y=brand_accuracy['Avg_Accuracy'],
-                        name='Avg Accuracy',
-                        marker_color=brand_accuracy['Avg_Accuracy'].apply(
-                            lambda x: '#4CAF50' if x >= 80 else '#FF9800' if x >= 70 else '#F44336'
-                        )
-                    ))
-                    
-                    fig_brand_acc.update_layout(
-                        height=400,
-                        title='Average Forecast Accuracy by Brand',
-                        xaxis_title='Brand',
-                        yaxis_title='Accuracy %',
-                        yaxis_range=[0, 110]
-                    )
-                    
-                    st.plotly_chart(fig_brand_acc, use_container_width=True)
-                
-                # Detail Table
+                # Detail Table dengan Sales_Qty
                 st.divider()
                 st.subheader("📋 SKU-Level Accuracy Details")
                 
                 display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'Rofo_Qty', 'PO_Qty', 
-                              'Accuracy', 'Status', 'Variance', 'Variance_Pct']
+                              'Sales_Qty', 'Accuracy', 'Status', 'Variance', 'Variance_Pct']
                 
                 available_cols = [col for col in display_cols if col in accuracy_df.columns]
                 
@@ -5738,8 +5743,8 @@ with tab9:
                 monthly_revenue[month_col] = month_revenue
                 total_revenue_2026 += month_revenue
             
-            # Financial Metrics
-            col_fin1, col_fin2, col_fin3, col_fin4 = st.columns(4)
+            # Financial Metrics - HAPUS ESTIMATED GROSS MARGIN
+            col_fin1, col_fin2, col_fin3 = st.columns(3)
             
             with col_fin1:
                 st.metric("Total Revenue 2026", f"Rp {total_revenue_2026:,.0f}")
@@ -5749,51 +5754,66 @@ with tab9:
                 st.metric("Avg Monthly Revenue", f"Rp {avg_monthly_rev:,.0f}")
             
             with col_fin3:
-                # Assuming 30% margin for calculation
-                estimated_margin = total_revenue_2026 * 0.3
-                st.metric("Estimated Gross Margin", f"Rp {estimated_margin:,.0f}")
-            
-            with col_fin4:
                 peak_month = max(monthly_revenue, key=monthly_revenue.get) if monthly_revenue else 'N/A'
                 peak_rev = monthly_revenue.get(peak_month, 0)
                 st.metric("Peak Revenue Month", f"Rp {peak_rev:,.0f}", delta=peak_month)
             
-            # Revenue Trend Chart
+            # Revenue Trend Chart - FIXED ORDER
             st.divider()
             st.subheader("📈 Monthly Revenue Projection")
             
-            revenue_df = pd.DataFrame({
-                'Month': list(monthly_revenue.keys()),
-                'Revenue': list(monthly_revenue.values())
-            })
-            
             # Sort months chronologically
-            try:
-                revenue_df['Month_Date'] = revenue_df['Month'].apply(validate_month_format)
+            revenue_list = []
+            for month_col, revenue in monthly_revenue.items():
+                try:
+                    # Parse month untuk sorting
+                    month_str = str(month_col)
+                    if ' ' in month_str:
+                        month_part, year_part = month_str.split(' ')
+                        month_date = datetime.strptime(f"{month_part[:3]}-{year_part}", "%b-%y")
+                    elif '-' in month_str:
+                        month_part, year_part = month_str.split('-')
+                        month_date = datetime.strptime(f"{month_part[:3]}-{year_part}", "%b-%y")
+                    else:
+                        continue
+                    
+                    revenue_list.append({
+                        'Month': month_col,
+                        'Month_Date': month_date,
+                        'Revenue': revenue,
+                        'Display': month_date.strftime('%b-%y')
+                    })
+                except:
+                    continue
+            
+            if revenue_list:
+                revenue_df = pd.DataFrame(revenue_list)
                 revenue_df = revenue_df.sort_values('Month_Date')
-            except:
-                revenue_df = revenue_df.sort_values('Month')
-            
-            fig_rev = go.Figure()
-            
-            fig_rev.add_trace(go.Bar(
-                x=revenue_df['Month'],
-                y=revenue_df['Revenue'],
-                name='Projected Revenue',
-                marker_color='#4CAF50',
-                text=[f"Rp {x:,.0f}" for x in revenue_df['Revenue']],
-                textposition='auto'
-            ))
-            
-            fig_rev.update_layout(
-                height=400,
-                title='Reseller Revenue Projection 2026',
-                xaxis_title='Month',
-                yaxis_title='Revenue (Rp)',
-                hovermode='x unified'
-            )
-            
-            st.plotly_chart(fig_rev, use_container_width=True)
+                
+                # Hanya ambil bulan Feb_26 sampai Jan_27
+                # Filter berdasarkan tahun 2026-2027
+                revenue_filtered = revenue_df.copy()
+                
+                fig_rev = go.Figure()
+                
+                fig_rev.add_trace(go.Bar(
+                    x=revenue_filtered['Display'],
+                    y=revenue_filtered['Revenue'],
+                    name='Projected Revenue',
+                    marker_color='#4CAF50',
+                    text=[f"Rp {x:,.0f}" for x in revenue_filtered['Revenue']],
+                    textposition='auto'
+                ))
+                
+                fig_rev.update_layout(
+                    height=400,
+                    title='Reseller Revenue Projection (Feb 26 - Jan 27)',
+                    xaxis_title='Month',
+                    yaxis_title='Revenue (Rp)',
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig_rev, use_container_width=True)
             
             # Revenue by Brand
             st.divider()
