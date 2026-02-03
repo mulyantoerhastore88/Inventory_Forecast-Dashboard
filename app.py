@@ -5725,25 +5725,32 @@ with tab9:
         has_price_data = 'Floor_Price' in df_reseller_forecast.columns
         
         if has_price_data and reseller_forecast_cols:
-            # Calculate financial projections
+            # Calculate financial projections - PERBAIKAN: hitung per SKU dengan price masing-masing
             df_financial = df_reseller_forecast.copy()
             
             # Ensure price is numeric
             df_financial['Floor_Price'] = pd.to_numeric(df_financial['Floor_Price'], errors='coerce').fillna(0)
             
-            # Calculate monthly revenue projections
+            # Calculate monthly revenue projections - FIXED: Hitung revenue per SKU lalu sum
             monthly_revenue = {}
             total_revenue_2026 = 0
             
+            # Debug: tampilkan sample data
+            st.caption(f"📊 Data sample: {len(df_financial)} SKUs, {len(reseller_forecast_cols)} bulan")
+            
             for month_col in reseller_forecast_cols:
-                month_qty = df_financial[month_col].sum()
-                # Gunakan average price untuk menghitung revenue
-                avg_price = df_financial['Floor_Price'].mean() if df_financial['Floor_Price'].mean() > 0 else 0
-                month_revenue = month_qty * avg_price
+                # Hitung revenue untuk bulan ini: SUM(quantity * floor_price per SKU)
+                month_revenue = 0
+                for idx, row in df_financial.iterrows():
+                    qty = pd.to_numeric(row[month_col], errors='coerce')
+                    price = row['Floor_Price']
+                    if pd.notna(qty) and pd.notna(price):
+                        month_revenue += qty * price
+                
                 monthly_revenue[month_col] = month_revenue
                 total_revenue_2026 += month_revenue
             
-            # Financial Metrics - HAPUS ESTIMATED GROSS MARGIN
+            # Financial Metrics
             col_fin1, col_fin2, col_fin3 = st.columns(3)
             
             with col_fin1:
@@ -5754,92 +5761,161 @@ with tab9:
                 st.metric("Avg Monthly Revenue", f"Rp {avg_monthly_rev:,.0f}")
             
             with col_fin3:
-                peak_month = max(monthly_revenue, key=monthly_revenue.get) if monthly_revenue else 'N/A'
-                peak_rev = monthly_revenue.get(peak_month, 0)
-                st.metric("Peak Revenue Month", f"Rp {peak_rev:,.0f}", delta=peak_month)
+                if monthly_revenue:
+                    peak_month = max(monthly_revenue, key=monthly_revenue.get)
+                    peak_rev = monthly_revenue.get(peak_month, 0)
+                    st.metric("Peak Revenue Month", f"Rp {peak_rev:,.0f}", delta=peak_month)
+                else:
+                    st.metric("Peak Revenue Month", "Rp 0")
             
             # Revenue Trend Chart - FIXED ORDER
             st.divider()
-            st.subheader("📈 Monthly Revenue Projection")
+            st.subheader("📈 Monthly Revenue Projection (Feb 26 - Jan 27)")
             
-            # Sort months chronologically
-            revenue_list = []
-            for month_col, revenue in monthly_revenue.items():
-                try:
-                    # Parse month untuk sorting
-                    month_str = str(month_col)
-                    if ' ' in month_str:
-                        month_part, year_part = month_str.split(' ')
-                        month_date = datetime.strptime(f"{month_part[:3]}-{year_part}", "%b-%y")
-                    elif '-' in month_str:
-                        month_part, year_part = month_str.split('-')
-                        month_date = datetime.strptime(f"{month_part[:3]}-{year_part}", "%b-%y")
-                    else:
+            if monthly_revenue:
+                # Sort months chronologically
+                revenue_list = []
+                for month_col, revenue in monthly_revenue.items():
+                    try:
+                        month_str = str(month_col).strip().upper()
+                        
+                        # Parse berbagai format bulan
+                        if '_' in month_str:
+                            month_part, year_part = month_str.split('_')
+                            month_name = month_part[:3]
+                            year_num = int(year_part) if len(year_part) == 2 else 2026
+                            year_full = 2000 + year_num if year_num < 100 else year_num
+                        elif ' ' in month_str:
+                            month_part, year_part = month_str.split(' ')
+                            month_name = month_part[:3]
+                            year_num = int(year_part) if year_part.isdigit() else 2026
+                            year_full = 2000 + year_num if year_num < 100 else year_num
+                        elif '-' in month_str:
+                            month_part, year_part = month_str.split('-')
+                            month_name = month_part[:3]
+                            year_num = int(year_part) if year_part.isdigit() else 2026
+                            year_full = 2000 + year_num if year_num < 100 else year_num
+                        else:
+                            month_name = month_str[:3]
+                            year_full = 2026
+                        
+                        # Map nama bulan ke angka
+                        month_map = {
+                            'JAN': 1, 'FEB': 2, 'MAR': 3, 'APR': 4, 'MAY': 5, 'JUN': 6,
+                            'JUL': 7, 'AUG': 8, 'SEP': 9, 'OCT': 10, 'NOV': 11, 'DEC': 12
+                        }
+                        
+                        month_num = month_map.get(month_name, 1)
+                        month_date = datetime(year_full, month_num, 1)
+                        display_name = f"{month_name}-{str(year_full)[-2:]}"
+                        
+                        revenue_list.append({
+                            'Month': month_col,
+                            'Month_Date': month_date,
+                            'Revenue': revenue,
+                            'Display': display_name
+                        })
+                    except Exception as e:
+                        st.write(f"⚠️ Error parsing {month_col}: {str(e)}")
                         continue
+                
+                if revenue_list:
+                    revenue_df = pd.DataFrame(revenue_list)
+                    revenue_df = revenue_df.sort_values('Month_Date')
                     
-                    revenue_list.append({
-                        'Month': month_col,
-                        'Month_Date': month_date,
-                        'Revenue': revenue,
-                        'Display': month_date.strftime('%b-%y')
-                    })
-                except:
-                    continue
-            
-            if revenue_list:
-                revenue_df = pd.DataFrame(revenue_list)
-                revenue_df = revenue_df.sort_values('Month_Date')
+                    # Filter Feb 26 - Jan 27
+                    start_date = datetime(2026, 2, 1)
+                    end_date = datetime(2027, 2, 1)  # Termasuk Jan 27
+                    
+                    revenue_filtered = revenue_df[
+                        (revenue_df['Month_Date'] >= start_date) & 
+                        (revenue_df['Month_Date'] < end_date)
+                    ].copy()
+                    
+                    # Debug info
+                    st.caption(f"📅 Menampilkan {len(revenue_filtered)} bulan (Feb 26 - Jan 27)")
+                    
+                    if not revenue_filtered.empty:
+                        # Urutkan display name sesuai urutan kronologis
+                        revenue_filtered = revenue_filtered.sort_values('Month_Date')
+                        
+                        fig_rev = go.Figure()
+                        
+                        fig_rev.add_trace(go.Bar(
+                            x=revenue_filtered['Display'],
+                            y=revenue_filtered['Revenue'],
+                            name='Projected Revenue',
+                            marker_color='#4CAF50',
+                            text=[f"Rp {x:,.0f}" for x in revenue_filtered['Revenue']],
+                            textposition='auto'
+                        ))
+                        
+                        fig_rev.update_layout(
+                            height=400,
+                            title='Reseller Revenue Projection (Feb 26 - Jan 27)',
+                            xaxis_title='Month',
+                            yaxis_title='Revenue (Rp)',
+                            hovermode='x unified'
+                        )
+                        
+                        st.plotly_chart(fig_rev, use_container_width=True)
+                        
+                        # Tampilkan data tabel
+                        with st.expander("📋 View Revenue Data"):
+                            display_df = revenue_filtered[['Month', 'Display', 'Revenue']].copy()
+                            display_df['Revenue'] = display_df['Revenue'].apply(lambda x: f"Rp {x:,.0f}")
+                            st.dataframe(display_df)
+                    else:
+                        st.warning("⚠️ Tidak ada data untuk periode Feb 26 - Jan 27")
+                        # Tampilkan semua data yang ada
+                        with st.expander("📋 Lihat Semua Data Revenue"):
+                            all_df = revenue_df[['Month', 'Display', 'Month_Date', 'Revenue']].copy()
+                            all_df['Revenue'] = all_df['Revenue'].apply(lambda x: f"Rp {x:,.0f}")
+                            all_df['Month_Date'] = all_df['Month_Date'].dt.strftime('%Y-%m')
+                            st.dataframe(all_df)
+                else:
+                    st.warning("⚠️ Tidak ada data revenue yang bisa di-parse")
+            else:
+                st.warning("⚠️ Tidak ada data revenue")
                 
-                # Hanya ambil bulan Feb_26 sampai Jan_27
-                # Filter berdasarkan tahun 2026-2027
-                revenue_filtered = revenue_df.copy()
-                
-                fig_rev = go.Figure()
-                
-                fig_rev.add_trace(go.Bar(
-                    x=revenue_filtered['Display'],
-                    y=revenue_filtered['Revenue'],
-                    name='Projected Revenue',
-                    marker_color='#4CAF50',
-                    text=[f"Rp {x:,.0f}" for x in revenue_filtered['Revenue']],
-                    textposition='auto'
-                ))
-                
-                fig_rev.update_layout(
-                    height=400,
-                    title='Reseller Revenue Projection (Feb 26 - Jan 27)',
-                    xaxis_title='Month',
-                    yaxis_title='Revenue (Rp)',
-                    hovermode='x unified'
-                )
-                
-                st.plotly_chart(fig_rev, use_container_width=True)
-            
-            # Revenue by Brand
+            # PERBAIKAN: Revenue by Brand - hitung dengan benar per SKU
             st.divider()
             st.subheader("🏷️ Revenue Contribution by Brand")
             
             if 'Brand' in df_financial.columns:
-                brand_revenue = []
+                # Hitung revenue per brand
+                brand_revenue_dict = {}
                 
                 for brand in df_financial['Brand'].unique():
                     brand_data = df_financial[df_financial['Brand'] == brand]
                     brand_rev = 0
                     
+                    # Hitung revenue untuk semua bulan
                     for month_col in reseller_forecast_cols:
-                        month_qty = brand_data[month_col].sum()
-                        avg_price = brand_data['Floor_Price'].mean() if not brand_data['Floor_Price'].isna().all() else 0
-                        brand_rev += month_qty * avg_price
+                        for idx, row in brand_data.iterrows():
+                            qty = pd.to_numeric(row[month_col], errors='coerce')
+                            price = row['Floor_Price']
+                            if pd.notna(qty) and pd.notna(price):
+                                brand_rev += qty * price
                     
-                    brand_revenue.append({
-                        'Brand': brand,
+                    brand_revenue_dict[brand] = {
                         'Revenue': brand_rev,
                         'SKU_Count': len(brand_data),
-                        'Avg_Price': brand_data['Floor_Price'].mean()
-                    })
+                        'Avg_Price': brand_data['Floor_Price'].mean() if not brand_data['Floor_Price'].isna().all() else 0
+                    }
                 
-                if brand_revenue:
-                    brand_rev_df = pd.DataFrame(brand_revenue).sort_values('Revenue', ascending=False)
+                if brand_revenue_dict:
+                    # Convert to dataframe
+                    brand_revenue_list = []
+                    for brand, data in brand_revenue_dict.items():
+                        brand_revenue_list.append({
+                            'Brand': brand,
+                            'Revenue': data['Revenue'],
+                            'SKU_Count': data['SKU_Count'],
+                            'Avg_Price': data['Avg_Price']
+                        })
+                    
+                    brand_rev_df = pd.DataFrame(brand_revenue_list).sort_values('Revenue', ascending=False)
                     
                     fig_brand_rev = go.Figure()
                     
@@ -5860,6 +5936,14 @@ with tab9:
                     )
                     
                     st.plotly_chart(fig_brand_rev, use_container_width=True)
+                    
+                    # Tampilkan tabel ringkasan
+                    with st.expander("📋 Brand Revenue Summary"):
+                        summary_df = brand_rev_df.copy()
+                        summary_df['Revenue'] = summary_df['Revenue'].apply(lambda x: f"Rp {x:,.0f}")
+                        summary_df['Avg_Price'] = summary_df['Avg_Price'].apply(lambda x: f"Rp {x:,.0f}")
+                        summary_df['Revenue_Share'] = (brand_rev_df['Revenue'] / total_revenue_2026 * 100).apply(lambda x: f"{x:.1f}%")
+                        st.dataframe(summary_df[['Brand', 'SKU_Count', 'Revenue', 'Revenue_Share', 'Avg_Price']])
         
         else:
             if not has_price_data:
