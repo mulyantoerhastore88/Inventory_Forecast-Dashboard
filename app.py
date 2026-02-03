@@ -629,10 +629,125 @@ def load_and_process_data(_client):
 
         return data
         
+    # --- FUNGSI BARU: LOAD DATA RESELLER LENGKAP ---
+@st.cache_data(ttl=300, show_spinner=False)
+def load_reseller_complete_data(_client):
+    """
+    Load SEMUA data reseller: forecast, sales, past rofo, past PO
+    """
+    gsheet_url = st.secrets["gsheet_url"]
+    reseller_data = {}
+    
+    try:
+        # 1. FORECAST 2026 RESELLER
+        ws_fcst = _client.open_by_url(gsheet_url).worksheet("Forecast_2026_Reseller")
+        df_fcst_raw = pd.DataFrame(ws_fcst.get_all_records())
+        df_fcst_raw.columns = [col.strip() for col in df_fcst_raw.columns]
+        
+        # Identifikasi kolom bulan
+        all_month_cols = [c for c in df_fcst_raw.columns if any(m in c.upper() for m in 
+                      ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
+        
+        # Pisahkan 2025 (history) vs 2026+ (forecast)
+        hist_cols = []
+        fcst_cols = []
+        
+        for col in all_month_cols:
+            col_str = str(col).upper()
+            if '25' in col_str or '2025' in col_str:
+                hist_cols.append(col)
+            else:
+                fcst_cols.append(col)  # 2026, 2027, dll
+        
+        # Convert numeric
+        for col in all_month_cols:
+            df_fcst_raw[col] = pd.to_numeric(df_fcst_raw[col], errors='coerce').fillna(0)
+        
+        reseller_data['forecast'] = df_fcst_raw
+        reseller_data['forecast_month_cols'] = fcst_cols
+        reseller_data['historical_month_cols'] = hist_cols
+        
+        # 2. SALES RESELLER
+        try:
+            ws_sales = _client.open_by_url(gsheet_url).worksheet("Sales_Reseller")
+            df_sales_raw = pd.DataFrame(ws_sales.get_all_records())
+            df_sales_raw.columns = [col.strip() for col in df_sales_raw.columns]
+            
+            # Transform ke long format
+            month_cols_sales = [c for c in df_sales_raw.columns if any(m in c.upper() for m in 
+                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
+            
+            if month_cols_sales and 'SKU_ID' in df_sales_raw.columns:
+                id_cols_sales = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
+                id_cols_sales = [c for c in id_cols_sales if c in df_sales_raw.columns]
+                
+                df_sales_long = df_sales_raw.melt(
+                    id_vars=id_cols_sales,
+                    value_vars=month_cols_sales,
+                    var_name='Month_Label',
+                    value_name='Sales_Qty'
+                )
+                df_sales_long['Sales_Qty'] = pd.to_numeric(df_sales_long['Sales_Qty'], errors='coerce').fillna(0)
+                df_sales_long['Month'] = df_sales_long['Month_Label'].apply(validate_month_format)
+                reseller_data['sales'] = df_sales_long
+        except Exception as e:
+            st.warning(f"⚠️ Sales_Reseller sheet not accessible: {str(e)}")
+        
+        # 3. PAST ROFO RESELLER
+        try:
+            ws_rofo = _client.open_by_url(gsheet_url).worksheet("Past_Rofo_Reseller")
+            df_rofo_raw = pd.DataFrame(ws_rofo.get_all_records())
+            df_rofo_raw.columns = [col.strip() for col in df_rofo_raw.columns]
+            
+            month_cols_rofo = [c for c in df_rofo_raw.columns if any(m in c.upper() for m in 
+                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
+            
+            if month_cols_rofo and 'SKU_ID' in df_rofo_raw.columns:
+                id_cols_rofo = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
+                id_cols_rofo = [c for c in id_cols_rofo if c in df_rofo_raw.columns]
+                
+                df_rofo_long = df_rofo_raw.melt(
+                    id_vars=id_cols_rofo,
+                    value_vars=month_cols_rofo,
+                    var_name='Month_Label',
+                    value_name='Forecast_Qty'
+                )
+                df_rofo_long['Forecast_Qty'] = pd.to_numeric(df_rofo_long['Forecast_Qty'], errors='coerce').fillna(0)
+                df_rofo_long['Month'] = df_rofo_long['Month_Label'].apply(validate_month_format)
+                reseller_data['past_rofo'] = df_rofo_long
+        except Exception as e:
+            st.warning(f"⚠️ Past_Rofo_Reseller sheet not accessible: {str(e)}")
+        
+        # 4. PAST PO RESELLER
+        try:
+            ws_po = _client.open_by_url(gsheet_url).worksheet("Past_PO_Reseller")
+            df_po_raw = pd.DataFrame(ws_po.get_all_records())
+            df_po_raw.columns = [col.strip() for col in df_po_raw.columns]
+            
+            month_cols_po = [c for c in df_po_raw.columns if any(m in c.upper() for m in 
+                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
+            
+            if month_cols_po and 'SKU_ID' in df_po_raw.columns:
+                id_cols_po = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
+                id_cols_po = [c for c in id_cols_po if c in df_po_raw.columns]
+                
+                df_po_long = df_po_raw.melt(
+                    id_vars=id_cols_po,
+                    value_vars=month_cols_po,
+                    var_name='Month_Label',
+                    value_name='PO_Qty'
+                )
+                df_po_long['PO_Qty'] = pd.to_numeric(df_po_long['PO_Qty'], errors='coerce').fillna(0)
+                df_po_long['Month'] = df_po_long['Month_Label'].apply(validate_month_format)
+                reseller_data['past_po'] = df_po_long
+        except Exception as e:
+            st.warning(f"⚠️ Past_PO_Reseller sheet not accessible: {str(e)}")
+        
+        return reseller_data
+        
     except Exception as e:
-        st.error(f"❌ Error loading data: {str(e)}")
+        st.error(f"❌ Error loading reseller data: {str(e)}")
         return {}
-
 # --- ====================================================== ---
 # ---                FINANCIAL FUNCTIONS                    ---
 # --- ====================================================== ---
@@ -1340,6 +1455,7 @@ def validate_data_quality(df, df_name):
 # ---                DASHBOARD INITIALIZATION               ---
 # --- ====================================================== ---
 
+# --- DASHBOARD INITIALIZATION ---
 # Initialize connection
 client = init_gsheet_connection()
 
@@ -1362,7 +1478,7 @@ with st.spinner('🔄 Loading and processing data from Google Sheets...'):
     df_ecomm_forecast = all_data.get('ecomm_forecast', pd.DataFrame())
     ecomm_forecast_month_cols = all_data.get('ecomm_forecast_month_cols', [])
     
-    # Tambah data reseller (untuk Tab 9)
+    # Tambah data reseller (untuk Tab 9) - DARI all_data LAMA
     df_reseller_forecast = all_data.get('reseller_forecast', pd.DataFrame())
     reseller_all_month_cols = all_data.get('reseller_all_month_cols', [])
     reseller_historical_cols = all_data.get('reseller_historical_cols', [])
@@ -1371,6 +1487,22 @@ with st.spinner('🔄 Loading and processing data from Google Sheets...'):
     # Untuk backward compatibility (jika ada script yang masih pakai nama lama)
     df_rofo_onwards = df_ecomm_forecast  # Alias untuk Tab 7
     rofo_onwards_month_cols = ecomm_forecast_month_cols  # Alias untuk Tab 7
+    
+    # --- LOAD DATA RESELLER LENGKAP (BARU) ---
+    with st.spinner('🔄 Loading Reseller Data...'):
+        reseller_complete_data = load_reseller_complete_data(client)
+        
+        # Data Reseller yang sudah ada (tetap pakai untuk kompatibilitas)
+        if df_reseller_forecast.empty and 'forecast' in reseller_complete_data:
+            df_reseller_forecast = reseller_complete_data.get('forecast', pd.DataFrame())
+        
+        if not reseller_forecast_cols and 'forecast_month_cols' in reseller_complete_data:
+            reseller_forecast_cols = reseller_complete_data.get('forecast_month_cols', [])
+        
+        # Data Reseller BARU
+        df_sales_reseller = reseller_complete_data.get('sales', pd.DataFrame())
+        df_past_rofo_reseller = reseller_complete_data.get('past_rofo', pd.DataFrame())
+        df_past_po_reseller = reseller_complete_data.get('past_po', pd.DataFrame())
 
 # Calculate metrics
 monthly_performance = calculate_monthly_performance(df_forecast, df_po, df_product)
@@ -5202,377 +5334,671 @@ with tab8:
         st.info("ℹ️ Please ensure both Ecommerce and Reseller forecast sheets have data for 2026 to generate this analysis.")
 
 
-# --- TAB 9: RESELLER FORECAST ANALYSIS ---
+# --- TAB 9: RESELLER PERFORMANCE DASHBOARD (COMPREHENSIVE) ---
 with tab9:
-    st.subheader("🤝 Reseller Forecast Analysis 2026")
-    st.markdown("**Analyze Reseller forecast data (2026 Projection with 2025 History)**")
+    st.subheader("🤝 Reseller Performance Dashboard")
+    st.markdown("**Comprehensive Reseller Analytics: Forecast Accuracy, Sales Performance & Inventory Planning**")
     
-    # ================ 0. ROBUST DATE PARSER (FIXED FOR UNDERSCORE) ================
-    def get_date_object(col_name):
-        """
-        Mengubah string kolom (Jan 25 / Jan-25 / Jan_25) menjadi datetime object.
-        Support pemisah SPASI, STRIP, dan UNDERSCORE.
-        """
+    # ================ 1. LOAD ADDITIONAL RESELLER DATA ================
+    @st.cache_data(ttl=300)
+    def load_reseller_data(_client):
+        """Load semua data reseller yang baru"""
+        gsheet_url = st.secrets["gsheet_url"]
+        reseller_data = {}
+        
         try:
-            col_name = str(col_name).strip().lower()
+            # 1. Sales Reseller
+            ws_sales_res = _client.open_by_url(gsheet_url).worksheet("Sales_Reseller")
+            df_sales_res = pd.DataFrame(ws_sales_res.get_all_records())
+            df_sales_res.columns = [col.strip() for col in df_sales_res.columns]
             
-            # --- FIX: Normalisasi pemisah menjadi spasi semua ---
-            # Ini mengatasi masalah karena loader mengubah spasi jadi underscore
-            col_name_clean = col_name.replace('_', ' ').replace('-', ' ')
+            # Transform ke long format
+            month_cols_sales = [c for c in df_sales_res.columns if any(m in c.upper() for m in 
+                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
             
-            parts = col_name_clean.split(' ')
+            if month_cols_sales and 'SKU_ID' in df_sales_res.columns:
+                id_cols_sales = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
+                df_sales_res_long = df_sales_res.melt(
+                    id_vars=[c for c in id_cols_sales if c in df_sales_res.columns],
+                    value_vars=month_cols_sales,
+                    var_name='Month_Label',
+                    value_name='Sales_Qty'
+                )
+                df_sales_res_long['Sales_Qty'] = pd.to_numeric(df_sales_res_long['Sales_Qty'], errors='coerce').fillna(0)
+                df_sales_res_long['Month'] = df_sales_res_long['Month_Label'].apply(validate_month_format)
+                reseller_data['sales'] = df_sales_res_long
             
-            # Validasi panjang hasil split (harus ada bulan dan tahun)
-            if len(parts) < 2: return None
+            # 2. Past Rofo Reseller
+            ws_rofo_res = _client.open_by_url(gsheet_url).worksheet("Past_Rofo_Reseller")
+            df_rofo_res = pd.DataFrame(ws_rofo_res.get_all_records())
+            df_rofo_res.columns = [col.strip() for col in df_rofo_res.columns]
             
-            # Filter elemen kosong jika ada double space
-            parts = [p for p in parts if p]
-            if len(parts) < 2: return None
-
-            m_str = parts[0][:3] # Ambil 3 huruf pertama (jan, feb...)
-            y_str = parts[1]     # Ambil tahun (25, 2025...)
+            month_cols_rofo = [c for c in df_rofo_res.columns if any(m in c.upper() for m in 
+                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
             
-            # Mapping bulan manual (Support EN/ID)
-            month_map = {
-                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 
-                'may': 5, 'mei': 5, 
-                'jun': 6, 'jul': 7, 
-                'aug': 8, 'agu': 8, 
-                'sep': 9, 'sept': 9, 
-                'oct': 10, 'okt': 10, 
-                'nov': 11, 'dec': 12, 'des': 12
-            }
+            if month_cols_rofo and 'SKU_ID' in df_rofo_res.columns:
+                id_cols_rofo = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
+                df_rofo_res_long = df_rofo_res.melt(
+                    id_vars=[c for c in id_cols_rofo if c in df_rofo_res.columns],
+                    value_vars=month_cols_rofo,
+                    var_name='Month_Label',
+                    value_name='Forecast_Qty'
+                )
+                df_rofo_res_long['Forecast_Qty'] = pd.to_numeric(df_rofo_res_long['Forecast_Qty'], errors='coerce').fillna(0)
+                df_rofo_res_long['Month'] = df_rofo_res_long['Month_Label'].apply(validate_month_format)
+                reseller_data['past_rofo'] = df_rofo_res_long
             
-            if m_str not in month_map: return None
+            # 3. Past PO Reseller
+            ws_po_res = _client.open_by_url(gsheet_url).worksheet("Past_PO_Reseller")
+            df_po_res = pd.DataFrame(ws_po_res.get_all_records())
+            df_po_res.columns = [col.strip() for col in df_po_res.columns]
             
-            month_int = month_map[m_str]
+            month_cols_po = [c for c in df_po_res.columns if any(m in c.upper() for m in 
+                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
             
-            # Handle tahun 2 digit (25 -> 2025) atau 4 digit (2025)
-            # Bersihkan y_str dari karakter aneh non-digit
-            y_str = ''.join(filter(str.isdigit, y_str))
+            if month_cols_po and 'SKU_ID' in df_po_res.columns:
+                id_cols_po = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
+                df_po_res_long = df_po_res.melt(
+                    id_vars=[c for c in id_cols_po if c in df_po_res.columns],
+                    value_vars=month_cols_po,
+                    var_name='Month_Label',
+                    value_name='PO_Qty'
+                )
+                df_po_res_long['PO_Qty'] = pd.to_numeric(df_po_res_long['PO_Qty'], errors='coerce').fillna(0)
+                df_po_res_long['Month'] = df_po_res_long['Month_Label'].apply(validate_month_format)
+                reseller_data['past_po'] = df_po_res_long
             
-            if len(y_str) == 2:
-                year_int = int('20' + y_str)
-            elif len(y_str) == 4:
-                year_int = int(y_str)
-            else:
-                return None
+            return reseller_data
             
-            return datetime(year_int, month_int, 1)
-        except:
-            return None
-
-    # ================ 1. DATA PREPARATION ================
-    if not df_reseller_forecast.empty:
+        except Exception as e:
+            st.error(f"Error loading reseller data: {str(e)}")
+            return {}
+    
+    # Load data reseller tambahan
+    reseller_additional_data = load_reseller_data(client)
+    
+    df_sales_res = df_sales_reseller
+    df_past_rofo_res = df_past_rofo_reseller
+    df_past_po_res = df_past_po_reseller
+    
+    # ================ 2. RESELLER PERFORMANCE TABS ================
+    tab_res1, tab_res2, tab_res3, tab_res4 = st.tabs([
+        "📈 Performance Overview",
+        "🎯 Forecast Accuracy",
+        "💰 Financial Analysis", 
+        "📊 Data Explorer"
+    ])
+    
+    # --- TAB 1: PERFORMANCE OVERVIEW ---
+    with tab_res1:
+        st.subheader("📊 Reseller Performance Overview")
         
-        # --- A. Identifikasi Kolom Bulan ---
-        all_columns = df_reseller_forecast.columns.tolist()
-        month_map_cols = [] # List of tuples: (col_name, date_obj)
+        # Container untuk metrik utama
+        metric_container = st.container()
         
-        for col in all_columns:
-            date_obj = get_date_object(col)
-            if date_obj:
-                month_map_cols.append((col, date_obj))
-        
-        # Sort berdasarkan tanggal (PENTING)
-        month_map_cols.sort(key=lambda x: x[1])
-        
-        # Ambil nama kolom yang sudah urut
-        sorted_month_cols = [x[0] for x in month_map_cols]
-        
-        # Pisahkan Historical (2025) vs Forecast (2026)
-        hist_cols = [x[0] for x in month_map_cols if x[1].year == 2025]
-        fcst_cols = [x[0] for x in month_map_cols if x[1].year == 2026]
-        
-        # --- B. Identifikasi Kolom Atribut ---
-        # Mencari kolom Brand, Tier, Price meskipun sudah diubah jadi lowercase/underscore
-        cols_lower = {c.lower(): c for c in all_columns}
-        
-        brand_col = next((cols_lower[c] for c in cols_lower if 'brand' in c), 'Brand')
-        tier_col = next((cols_lower[c] for c in cols_lower if 'tier' in c), 'SKU_Tier')
-        price_col = next((cols_lower[c] for c in cols_lower if 'floor' in c or 'price' in c), 'Floor_Price')
-        
-        # --- C. Hitung Total ---
-        total_qty_2026 = df_reseller_forecast[fcst_cols].sum().sum() if fcst_cols else 0
-        total_qty_2025 = df_reseller_forecast[hist_cols].sum().sum() if hist_cols else 0
-        
-        # Hitung Value (Perlu Price)
-        total_val_2026 = 0
-        
-        # Helper untuk harga
-        df_work = df_reseller_forecast.copy()
-        if price_col not in df_work.columns:
-            df_work = add_product_info_to_data(df_work, df_product)
-            target_price_col = 'Floor_Price' 
-        else:
-            target_price_col = price_col
+        with metric_container:
+            col1, col2, col3, col4 = st.columns(4)
             
-        # Pastikan kolom harga numerik
-        if target_price_col in df_work.columns:
-            df_work['Calc_Price'] = pd.to_numeric(df_work[target_price_col], errors='coerce').fillna(0)
-            for m in fcst_cols:
-                total_val_2026 += (df_work[m] * df_work['Calc_Price']).sum()
-        else:
-            df_work['Calc_Price'] = 0
-
-        # ================ SECTION 1: OVERVIEW ================
+            with col1:
+                # Total Active SKUs (Reseller)
+                total_skus_res = len(df_reseller_forecast) if not df_reseller_forecast.empty else 0
+                st.metric("Active SKUs", f"{total_skus_res:,}")
+            
+            with col2:
+                # Total Forecast 2026
+                total_forecast_2026 = df_reseller_forecast[reseller_forecast_cols].sum().sum() if not df_reseller_forecast.empty and reseller_forecast_cols else 0
+                st.metric("Forecast 2026", f"{total_forecast_2026:,.0f}")
+            
+            with col3:
+                # Sales Jan 26
+                jan26_sales = df_sales_res[df_sales_res['Month_Label'] == 'Jan 26']['Sales_Qty'].sum() if not df_sales_res.empty else 0
+                st.metric("Sales Jan 26", f"{jan26_sales:,.0f}")
+            
+            with col4:
+                # Accuracy Rate (jika ada data)
+                if not df_past_rofo_res.empty and not df_past_po_res.empty:
+                    # Hitung accuracy untuk Jan 26
+                    rofo_jan = df_past_rofo_res[df_past_rofo_res['Month_Label'] == 'Jan 26']['Forecast_Qty'].sum()
+                    po_jan = df_past_po_res[df_past_po_res['Month_Label'] == 'Jan 26']['PO_Qty'].sum()
+                    accuracy = (min(rofo_jan, po_jan) / max(rofo_jan, po_jan) * 100) if max(rofo_jan, po_jan) > 0 else 0
+                    st.metric("Jan 26 Accuracy", f"{accuracy:.1f}%")
+        
+        # ROW 2: Triple Comparison Chart
         st.divider()
-        st.subheader("📈 Reseller Forecast Overview (2026)")
+        st.subheader("📈 Triple Comparison: Forecast vs PO vs Sales")
         
-        if not sorted_month_cols:
-            st.error(f"⚠️ Error: Tidak dapat mendeteksi kolom bulan. Pastikan format kolom seperti 'Jan 25', 'Feb 26'. Deteksi gagal pada kolom: {all_columns[:5]}")
-            st.stop()
-
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        
-        with kpi1:
-            st.metric("Total Active SKUs", f"{len(df_reseller_forecast):,}")
+        if not df_sales_res.empty and not df_past_rofo_res.empty and not df_past_po_res.empty:
+            # Aggregate monthly data
+            monthly_comparison = []
+            all_months = sorted(set(
+                list(df_sales_res['Month'].unique()) + 
+                list(df_past_rofo_res['Month'].unique()) + 
+                list(df_past_po_res['Month'].unique())
+            ))
             
-        with kpi2:
-            st.metric("Total Forecast Qty", f"{total_qty_2026:,.0f}", help="Total Quantity Jan-Dec 2026")
-            
-        with kpi3:
-            st.metric("Total Forecast Value", f"Rp {total_val_2026:,.0f}", help="Total Value Jan-Dec 2026")
-            
-        with kpi4:
-            growth = (total_qty_2026 - total_qty_2025) / total_qty_2025 * 100 if total_qty_2025 > 0 else 0
-            st.metric("Growth vs 2025", f"{growth:+.1f}%", delta="Volume Growth")
-
-        # ================ SECTION 2: MONTHLY TREND ================
-        st.divider()
-        st.subheader("📊 Monthly Trend Analysis (2025 - 2026)")
-        
-        trend_c1, trend_c2, trend_c3 = st.columns(3)
-        
-        with trend_c1:
-            all_brands = df_work[brand_col].unique().tolist() if brand_col in df_work.columns else []
-            default_brands = []
-            if all_brands and fcst_cols:
-                default_brands = df_work.groupby(brand_col)[fcst_cols].sum().sum(axis=1).nlargest(5).index.tolist()
-            
-            sel_brands = st.multiselect("Filter by Brand", options=all_brands, default=default_brands, key="res_trend_brand")
-            
-        with trend_c2:
-            all_tiers = df_work[tier_col].unique().tolist() if tier_col in df_work.columns else []
-            sel_tiers = st.multiselect("Filter by Tier", options=all_tiers, default=all_tiers, key="res_trend_tier")
-            
-        with trend_c3:
-            show_val_line = st.checkbox("Show Total Value (Secondary Axis)", value=True, key="res_show_val")
-
-        # Filter Data
-        df_filtered = df_work.copy()
-        if sel_brands: df_filtered = df_filtered[df_filtered[brand_col].isin(sel_brands)]
-        if sel_tiers and tier_col in df_filtered.columns: df_filtered = df_filtered[df_filtered[tier_col].isin(sel_tiers)]
-
-        if not df_filtered.empty:
-            fig = go.Figure()
-            
-            # 1. Line per Brand (Quantity)
-            if brand_col in df_filtered.columns:
-                brand_trend = df_filtered.groupby(brand_col)[sorted_month_cols].sum()
-                brand_trend['Total'] = brand_trend.sum(axis=1)
-                brand_trend = brand_trend.sort_values('Total', ascending=False).drop('Total', axis=1)
+            for month in all_months:
+                month_label = month.strftime('%b %y')
+                sales_qty = df_sales_res[df_sales_res['Month'] == month]['Sales_Qty'].sum()
+                rofo_qty = df_past_rofo_res[df_past_rofo_res['Month'] == month]['Forecast_Qty'].sum()
+                po_qty = df_past_po_res[df_past_po_res['Month'] == month]['PO_Qty'].sum()
                 
-                for brand in brand_trend.index:
-                    y_vals = brand_trend.loc[brand].values
-                    fig.add_trace(go.Scatter(
-                        x=sorted_month_cols, 
-                        y=y_vals, 
-                        name=str(brand),
-                        mode='lines+markers', 
-                        line=dict(width=3), 
-                        marker=dict(size=6),
-                        hovertemplate=f'<b>%{{x}}</b><br>{brand}: %{{y:,.0f}}<extra></extra>'
-                    ))
+                monthly_comparison.append({
+                    'Month': month_label,
+                    'Date': month,
+                    'Sales': sales_qty,
+                    'Rofo': rofo_qty,
+                    'PO': po_qty
+                })
             
-            # 2. Total Value Line (Secondary Axis)
-            if show_val_line:
-                monthly_vals = []
-                for m in sorted_month_cols:
-                    val = (df_filtered[m] * df_filtered['Calc_Price']).sum()
-                    monthly_vals.append(val)
-                    
-                fig.add_trace(go.Scatter(
-                    x=sorted_month_cols, 
-                    y=monthly_vals, 
-                    name='Total Value (Rp)',
-                    mode='lines+markers', 
-                    line=dict(color='#333333', width=2, dash='dot'),
-                    marker=dict(size=5, color='#333333', symbol='x'), 
-                    yaxis='y2', 
-                    opacity=0.6,
-                    hovertemplate='<b>%{x}</b><br>Total Value: Rp %{y:,.0f}<extra></extra>'
+            if monthly_comparison:
+                comp_df = pd.DataFrame(monthly_comparison).sort_values('Date')
+                
+                fig = go.Figure()
+                
+                fig.add_trace(go.Bar(
+                    x=comp_df['Month'],
+                    y=comp_df['Rofo'],
+                    name='Rofo',
+                    marker_color='#667eea',
+                    opacity=0.7
                 ))
-            
-            # Separator 2025/2026
-            if hist_cols:
-                idx_separator = len(hist_cols) - 0.5
-                fig.add_vline(x=idx_separator, line_dash="dash", line_color="gray", annotation_text="Forecast 2026 Start")
-
-            layout_config = {
-                'height': 500, 
-                'title': 'Monthly Sales Trend: 2025 (History) vs 2026 (Forecast)',
-                'xaxis': dict(
-                    title='Month', 
-                    type='category', 
-                    categoryorder='array', 
-                    categoryarray=sorted_month_cols
-                ),
-                'yaxis': dict(title='Quantity (units)'),
-                'hovermode': 'x unified', 
-                'plot_bgcolor': 'white', 
-                'legend': dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            }
-            if show_val_line:
-                layout_config['yaxis2'] = {'title': 'Total Value (Rp)', 'overlaying': 'y', 'side': 'right', 'showgrid': False}
                 
-            fig.update_layout(**layout_config)
-            st.plotly_chart(fig, use_container_width=True)
+                fig.add_trace(go.Bar(
+                    x=comp_df['Month'],
+                    y=comp_df['PO'],
+                    name='PO',
+                    marker_color='#FF9800',
+                    opacity=0.7
+                ))
+                
+                fig.add_trace(go.Bar(
+                    x=comp_df['Month'],
+                    y=comp_df['Sales'],
+                    name='Sales',
+                    marker_color='#4CAF50',
+                    opacity=0.7
+                ))
+                
+                fig.update_layout(
+                    height=400,
+                    title='Reseller Performance: Rofo vs PO vs Sales',
+                    xaxis_title='Month',
+                    yaxis_title='Quantity',
+                    barmode='group',
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+        
+        # ROW 3: Brand Performance Matrix
+        st.divider()
+        st.subheader("🏷️ Top Performing Brands (Reseller)")
+        
+        if not df_reseller_forecast.empty and 'Brand' in df_reseller_forecast.columns:
+            # Aggregate brand performance
+            brand_performance = []
+            brands = df_reseller_forecast['Brand'].unique()
+            
+            for brand in brands:
+                brand_data = df_reseller_forecast[df_reseller_forecast['Brand'] == brand]
+                
+                # Forecast 2026
+                forecast_2026 = brand_data[reseller_forecast_cols].sum().sum() if reseller_forecast_cols else 0
+                
+                # Sales Jan 26 (jika ada)
+                sales_jan26 = 0
+                if not df_sales_res.empty and 'Brand' in df_sales_res.columns:
+                    sales_jan26 = df_sales_res[(df_sales_res['Brand'] == brand) & 
+                                              (df_sales_res['Month_Label'] == 'Jan 26')]['Sales_Qty'].sum()
+                
+                brand_performance.append({
+                    'Brand': brand,
+                    'Forecast_2026': forecast_2026,
+                    'Sales_Jan26': sales_jan26,
+                    'SKU_Count': len(brand_data)
+                })
+            
+            if brand_performance:
+                brand_df = pd.DataFrame(brand_performance)
+                brand_df = brand_df.sort_values('Forecast_2026', ascending=False).head(10)
+                
+                # Create dual-axis chart
+                fig_brand = go.Figure()
+                
+                # Bar: Forecast 2026
+                fig_brand.add_trace(go.Bar(
+                    x=brand_df['Brand'],
+                    y=brand_df['Forecast_2026'],
+                    name='Forecast 2026',
+                    marker_color='#667eea',
+                    yaxis='y'
+                ))
+                
+                # Line: Sales Jan 26
+                fig_brand.add_trace(go.Scatter(
+                    x=brand_df['Brand'],
+                    y=brand_df['Sales_Jan26'],
+                    name='Sales Jan 26',
+                    mode='lines+markers',
+                    line=dict(color='#FF5252', width=3),
+                    marker=dict(size=8),
+                    yaxis='y2'
+                ))
+                
+                fig_brand.update_layout(
+                    height=400,
+                    title='Top 10 Brands: Forecast 2026 vs Sales Jan 26',
+                    xaxis_title='Brand',
+                    yaxis=dict(title='Forecast 2026 (units)'),
+                    yaxis2=dict(
+                        title='Sales Jan 26 (units)',
+                        overlaying='y',
+                        side='right'
+                    ),
+                    hovermode='x unified'
+                )
+                
+                st.plotly_chart(fig_brand, use_container_width=True)
+    
+    # --- TAB 2: FORECAST ACCURACY ---
+    with tab_res2:
+        st.subheader("🎯 Reseller Forecast Accuracy Analysis")
+        
+        if not df_past_rofo_res.empty and not df_past_po_res.empty:
+            # Hitung accuracy per SKU untuk Jan 26
+            accuracy_data = []
+            
+            # Get SKUs yang ada di kedua dataset
+            common_skus = set(df_past_rofo_res['SKU_ID']).intersection(set(df_past_po_res['SKU_ID']))
+            
+            for sku in common_skus:
+                rofo_qty = df_past_rofo_res[(df_past_rofo_res['SKU_ID'] == sku) & 
+                                          (df_past_rofo_res['Month_Label'] == 'Jan 26')]['Forecast_Qty'].sum()
+                po_qty = df_past_po_res[(df_past_po_res['SKU_ID'] == sku) & 
+                                      (df_past_po_res['Month_Label'] == 'Jan 26')]['PO_Qty'].sum()
+                
+                if rofo_qty > 0:
+                    accuracy = (min(rofo_qty, po_qty) / max(rofo_qty, po_qty) * 100)
+                    status = 'Accurate' if accuracy >= 80 else 'Under' if po_qty < rofo_qty else 'Over'
+                    
+                    # Get brand dan product info
+                    brand = df_past_rofo_res[df_past_rofo_res['SKU_ID'] == sku]['Brand'].iloc[0] if 'Brand' in df_past_rofo_res.columns else ''
+                    product = df_past_rofo_res[df_past_rofo_res['SKU_ID'] == sku]['Product_Name'].iloc[0] if 'Product_Name' in df_past_rofo_res.columns else ''
+                    
+                    accuracy_data.append({
+                        'SKU_ID': sku,
+                        'Brand': brand,
+                        'Product_Name': product,
+                        'Rofo_Qty': rofo_qty,
+                        'PO_Qty': po_qty,
+                        'Accuracy': accuracy,
+                        'Status': status,
+                        'Variance': po_qty - rofo_qty,
+                        'Variance_Pct': ((po_qty - rofo_qty) / rofo_qty * 100) if rofo_qty > 0 else 0
+                    })
+            
+            if accuracy_data:
+                accuracy_df = pd.DataFrame(accuracy_data)
+                
+                # Summary Metrics
+                col_acc1, col_acc2, col_acc3, col_acc4 = st.columns(4)
+                
+                with col_acc1:
+                    avg_accuracy = accuracy_df['Accuracy'].mean()
+                    st.metric("Avg Accuracy", f"{avg_accuracy:.1f}%")
+                
+                with col_acc2:
+                    accurate_count = len(accuracy_df[accuracy_df['Accuracy'] >= 80])
+                    total_count = len(accuracy_df)
+                    st.metric("Accurate SKUs", f"{accurate_count}/{total_count}")
+                
+                with col_acc3:
+                    under_count = len(accuracy_df[accuracy_df['Status'] == 'Under'])
+                    st.metric("Under Forecast", f"{under_count}")
+                
+                with col_acc4:
+                    over_count = len(accuracy_df[accuracy_df['Status'] == 'Over'])
+                    st.metric("Over Forecast", f"{over_count}")
+                
+                # Accuracy Distribution Chart
+                st.divider()
+                st.subheader("📊 Accuracy Distribution")
+                
+                fig_dist = go.Figure()
+                
+                # Histogram accuracy
+                fig_dist.add_trace(go.Histogram(
+                    x=accuracy_df['Accuracy'],
+                    nbinsx=20,
+                    name='Accuracy Distribution',
+                    marker_color='#667eea',
+                    opacity=0.7
+                ))
+                
+                fig_dist.update_layout(
+                    height=300,
+                    title='Forecast Accuracy Distribution',
+                    xaxis_title='Accuracy %',
+                    yaxis_title='Number of SKUs',
+                    bargap=0.1
+                )
+                
+                st.plotly_chart(fig_dist, use_container_width=True)
+                
+                # Accuracy by Brand
+                st.divider()
+                st.subheader("🏷️ Accuracy by Brand")
+                
+                if 'Brand' in accuracy_df.columns:
+                    brand_accuracy = accuracy_df.groupby('Brand').agg({
+                        'SKU_ID': 'count',
+                        'Accuracy': 'mean',
+                        'Rofo_Qty': 'sum',
+                        'PO_Qty': 'sum'
+                    }).reset_index()
+                    
+                    brand_accuracy.columns = ['Brand', 'SKU_Count', 'Avg_Accuracy', 'Total_Rofo', 'Total_PO']
+                    brand_accuracy = brand_accuracy.sort_values('Avg_Accuracy', ascending=False)
+                    
+                    fig_brand_acc = go.Figure()
+                    
+                    fig_brand_acc.add_trace(go.Bar(
+                        x=brand_accuracy['Brand'],
+                        y=brand_accuracy['Avg_Accuracy'],
+                        name='Avg Accuracy',
+                        marker_color=brand_accuracy['Avg_Accuracy'].apply(
+                            lambda x: '#4CAF50' if x >= 80 else '#FF9800' if x >= 70 else '#F44336'
+                        )
+                    ))
+                    
+                    fig_brand_acc.update_layout(
+                        height=400,
+                        title='Average Forecast Accuracy by Brand',
+                        xaxis_title='Brand',
+                        yaxis_title='Accuracy %',
+                        yaxis_range=[0, 110]
+                    )
+                    
+                    st.plotly_chart(fig_brand_acc, use_container_width=True)
+                
+                # Detail Table
+                st.divider()
+                st.subheader("📋 SKU-Level Accuracy Details")
+                
+                display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'Rofo_Qty', 'PO_Qty', 
+                              'Accuracy', 'Status', 'Variance', 'Variance_Pct']
+                
+                available_cols = [col for col in display_cols if col in accuracy_df.columns]
+                
+                detail_df = accuracy_df[available_cols].copy()
+                detail_df['Accuracy'] = detail_df['Accuracy'].apply(lambda x: f"{x:.1f}%")
+                detail_df['Variance_Pct'] = detail_df['Variance_Pct'].apply(lambda x: f"{x:+.1f}%")
+                
+                st.dataframe(
+                    detail_df.sort_values('Accuracy'),
+                    use_container_width=True,
+                    height=400
+                )
+    
+    # --- TAB 3: FINANCIAL ANALYSIS ---
+    with tab_res3:
+        st.subheader("💰 Reseller Financial Analysis")
+        
+        # Cek apakah ada data harga
+        has_price_data = 'Floor_Price' in df_reseller_forecast.columns
+        
+        if has_price_data:
+            # Calculate financial projections
+            df_financial = df_reseller_forecast.copy()
+            
+            # Ensure price is numeric
+            df_financial['Floor_Price'] = pd.to_numeric(df_financial['Floor_Price'], errors='coerce').fillna(0)
+            
+            # Calculate monthly revenue projections
+            monthly_revenue = {}
+            total_revenue_2026 = 0
+            
+            for month_col in reseller_forecast_cols:
+                month_qty = df_financial[month_col].sum()
+                month_revenue = month_qty * df_financial['Floor_Price'].mean() if df_financial['Floor_Price'].mean() > 0 else 0
+                monthly_revenue[month_col] = month_revenue
+                total_revenue_2026 += month_revenue
+            
+            # Financial Metrics
+            col_fin1, col_fin2, col_fin3, col_fin4 = st.columns(4)
+            
+            with col_fin1:
+                st.metric("Total Revenue 2026", f"Rp {total_revenue_2026:,.0f}")
+            
+            with col_fin2:
+                avg_monthly_rev = total_revenue_2026 / len(reseller_forecast_cols) if reseller_forecast_cols else 0
+                st.metric("Avg Monthly Revenue", f"Rp {avg_monthly_rev:,.0f}")
+            
+            with col_fin3:
+                # Assuming 30% margin for calculation
+                estimated_margin = total_revenue_2026 * 0.3
+                st.metric("Estimated Gross Margin", f"Rp {estimated_margin:,.0f}")
+            
+            with col_fin4:
+                peak_month = max(monthly_revenue, key=monthly_revenue.get) if monthly_revenue else 'N/A'
+                peak_rev = monthly_revenue.get(peak_month, 0)
+                st.metric("Peak Revenue Month", f"Rp {peak_rev:,.0f}", delta=peak_month)
+            
+            # Revenue Trend Chart
+            st.divider()
+            st.subheader("📈 Monthly Revenue Projection")
+            
+            revenue_df = pd.DataFrame({
+                'Month': list(monthly_revenue.keys()),
+                'Revenue': list(monthly_revenue.values())
+            })
+            
+            # Sort months chronologically
+            revenue_df['Month_Date'] = revenue_df['Month'].apply(validate_month_format)
+            revenue_df = revenue_df.sort_values('Month_Date')
+            
+            fig_rev = go.Figure()
+            
+            fig_rev.add_trace(go.Bar(
+                x=revenue_df['Month'],
+                y=revenue_df['Revenue'],
+                name='Projected Revenue',
+                marker_color='#4CAF50',
+                text=[f"Rp {x:,.0f}" for x in revenue_df['Revenue']],
+                textposition='auto'
+            ))
+            
+            fig_rev.update_layout(
+                height=400,
+                title='Reseller Revenue Projection 2026',
+                xaxis_title='Month',
+                yaxis_title='Revenue (Rp)',
+                hovermode='x unified'
+            )
+            
+            st.plotly_chart(fig_rev, use_container_width=True)
+            
+            # Revenue by Brand
+            st.divider()
+            st.subheader("🏷️ Revenue Contribution by Brand")
+            
+            if 'Brand' in df_financial.columns:
+                brand_revenue = []
+                
+                for brand in df_financial['Brand'].unique():
+                    brand_data = df_financial[df_financial['Brand'] == brand]
+                    brand_rev = 0
+                    
+                    for month_col in reseller_forecast_cols:
+                        month_qty = brand_data[month_col].sum()
+                        avg_price = brand_data['Floor_Price'].mean() if not brand_data['Floor_Price'].isna().all() else 0
+                        brand_rev += month_qty * avg_price
+                    
+                    brand_revenue.append({
+                        'Brand': brand,
+                        'Revenue': brand_rev,
+                        'SKU_Count': len(brand_data),
+                        'Avg_Price': brand_data['Floor_Price'].mean()
+                    })
+                
+                if brand_revenue:
+                    brand_rev_df = pd.DataFrame(brand_revenue).sort_values('Revenue', ascending=False)
+                    
+                    fig_brand_rev = go.Figure()
+                    
+                    fig_brand_rev.add_trace(go.Bar(
+                        x=brand_rev_df['Brand'],
+                        y=brand_rev_df['Revenue'],
+                        name='Revenue',
+                        marker_color='#9C27B0',
+                        text=[f"Rp {x:,.0f}" for x in brand_rev_df['Revenue']],
+                        textposition='auto'
+                    ))
+                    
+                    fig_brand_rev.update_layout(
+                        height=400,
+                        title='Brand Revenue Contribution 2026',
+                        xaxis_title='Brand',
+                        yaxis_title='Revenue (Rp)'
+                    )
+                    
+                    st.plotly_chart(fig_brand_rev, use_container_width=True)
+        
         else:
-            st.warning("No data available for the selected filters.")
-
-        # ================ SECTION 3: QUARTERLY ANALYSIS ================
+            st.info("ℹ️ Add 'Floor_Price' column to Reseller forecast data for financial analysis")
+    
+    # --- TAB 4: DATA EXPLORER ---
+    with tab_res4:
+        st.subheader("📊 Reseller Data Explorer")
+        
+        # Tabs for different datasets
+        exp_tab1, exp_tab2, exp_tab3, exp_tab4 = st.tabs([
+            "Forecast 2026",
+            "Sales History",
+            "Past Rofo",
+            "Past PO"
+        ])
+        
+        with exp_tab1:
+            st.markdown("**Forecast 2026 Data**")
+            if not df_reseller_forecast.empty:
+                # Filter controls
+                exp_col1, exp_col2 = st.columns(2)
+                
+                with exp_col1:
+                    exp_brands = st.multiselect(
+                        "Filter Brands",
+                        options=df_reseller_forecast['Brand'].unique().tolist() if 'Brand' in df_reseller_forecast.columns else [],
+                        default=[],
+                        key="exp_brands_fcst"
+                    )
+                
+                with exp_col2:
+                    exp_months = st.multiselect(
+                        "Months to Show",
+                        options=reseller_forecast_cols,
+                        default=reseller_forecast_cols[:6] if reseller_forecast_cols else [],
+                        key="exp_months_fcst"
+                    )
+                
+                # Apply filters
+                df_exp = df_reseller_forecast.copy()
+                if exp_brands and 'Brand' in df_exp.columns:
+                    df_exp = df_exp[df_exp['Brand'].isin(exp_brands)]
+                
+                display_cols = ['SKU_ID', 'Product_Name', 'Brand', 'SKU_Tier', 'Floor_Price']
+                if exp_months:
+                    display_cols.extend(exp_months)
+                
+                # Filter available columns
+                available_cols = [col for col in display_cols if col in df_exp.columns]
+                
+                st.dataframe(
+                    df_exp[available_cols].head(100),
+                    use_container_width=True,
+                    height=400
+                )
+        
+        with exp_tab2:
+            st.markdown("**Sales History Data**")
+            if not df_sales_res.empty:
+                st.dataframe(
+                    df_sales_res.sort_values('Month', ascending=False).head(100),
+                    use_container_width=True,
+                    height=400
+                )
+        
+        with exp_tab3:
+            st.markdown("**Past Rofo Data**")
+            if not df_past_rofo_res.empty:
+                st.dataframe(
+                    df_past_rofo_res,
+                    use_container_width=True,
+                    height=400
+                )
+        
+        with exp_tab4:
+            st.markdown("**Past PO Data**")
+            if not df_past_po_res.empty:
+                st.dataframe(
+                    df_past_po_res,
+                    use_container_width=True,
+                    height=400
+                )
+        
+        # Download Options
         st.divider()
-        st.subheader("📅 Quarterly Performance 2026 (Brand & Tier)")
+        st.subheader("📥 Download Data")
         
-        # Logic Quarter (Only for Forecast 2026)
-        q_cols_map = {'Q1': [], 'Q2': [], 'Q3': [], 'Q4': []}
+        col_dl1, col_dl2, col_dl3, col_dl4 = st.columns(4)
         
-        for col in fcst_cols:
-            d_obj = get_date_object(col)
-            if d_obj:
-                m = d_obj.month
-                if 1 <= m <= 3: q_cols_map['Q1'].append(col)
-                elif 4 <= m <= 6: q_cols_map['Q2'].append(col)
-                elif 7 <= m <= 9: q_cols_map['Q3'].append(col)
-                elif 10 <= m <= 12: q_cols_map['Q4'].append(col)
-            
-        active_qs = [q for q, cols in q_cols_map.items() if len(cols) > 0]
+        with col_dl1:
+            if st.button("Download Forecast 2026", use_container_width=True):
+                csv = df_reseller_forecast.to_csv(index=False)
+                st.download_button(
+                    label="Click to Download",
+                    data=csv,
+                    file_name="reseller_forecast_2026.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="dl_fcst"
+                )
         
-        if active_qs:
-            qt_tab1, qt_tab2 = st.tabs(["🏷️ By Brand", "📦 By SKU Tier"])
-            
-            # Helper function for Heatmap
-            def render_heatmap_section(group_col, df_source, title_suffix):
-                q_data_qty = []
-                q_data_val = []
-                
-                for group in df_source[group_col].unique():
-                    row_qty = {group_col: group}
-                    row_val = {group_col: group}
-                    grp_data = df_source[df_source[group_col] == group]
-                    
-                    tot_qty = 0
-                    tot_val = 0
-                    
-                    for q in active_qs:
-                        cols = q_cols_map[q]
-                        q_qty = grp_data[cols].sum().sum()
-                        row_qty[q] = q_qty
-                        tot_qty += q_qty
-                        
-                        q_val = 0
-                        for c in cols: q_val += (grp_data[c] * grp_data['Calc_Price']).sum()
-                        row_val[q] = q_val
-                        tot_val += q_val
-                    
-                    row_qty['Total'] = tot_qty
-                    row_val['Total'] = tot_val
-                    q_data_qty.append(row_qty)
-                    q_data_val.append(row_val)
-                
-                df_qq = pd.DataFrame(q_data_qty).sort_values('Total', ascending=False)
-                df_qv = pd.DataFrame(q_data_val).sort_values('Total', ascending=False)
-                
-                c1, c2 = st.columns(2)
-                
-                with c1:
-                    st.markdown(f"**📦 Quantity Heatmap ({title_suffix})**")
-                    fig_h_q = go.Figure(data=go.Heatmap(
-                        z=df_qq[active_qs].head(10).values, x=active_qs, y=df_qq[group_col].head(10),
-                        colorscale='Blues', text=df_qq[active_qs].head(10).values, texttemplate="%{text:,.0f}"
-                    ))
-                    fig_h_q.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
-                    st.plotly_chart(fig_h_q, use_container_width=True)
-                    
-                with c2:
-                    st.markdown(f"**💰 Value Heatmap ({title_suffix})**")
-                    fig_h_v = go.Figure(data=go.Heatmap(
-                        z=df_qv[active_qs].head(10).values, x=active_qs, y=df_qv[group_col].head(10),
-                        colorscale='Greens', text=df_qv[active_qs].head(10).values, texttemplate="Rp %{text:,.0f}"
-                    ))
-                    fig_h_v.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
-                    st.plotly_chart(fig_h_v, use_container_width=True)
-                
-                with st.expander(f"View Detailed Table ({title_suffix})"):
-                    disp_df = df_qq.copy()
-                    for c in disp_df.columns:
-                        if c != group_col: disp_df[c] = disp_df[c].apply(lambda x: f"{x:,.0f}")
-                    st.dataframe(disp_df, use_container_width=True)
-
-            with qt_tab1: render_heatmap_section(brand_col, df_work, "Brand")
-            with qt_tab2: 
-                if tier_col in df_work.columns: render_heatmap_section(tier_col, df_work, "Tier")
-                else: st.warning("⚠️ SKU Tier column not found")
-
-        # ================ SECTION 4: DATA EXPLORER ================
-        st.divider()
-        st.subheader("📋 Reseller Data Explorer")
+        with col_dl2:
+            if not df_sales_res.empty and st.button("Download Sales", use_container_width=True):
+                csv = df_sales_res.to_csv(index=False)
+                st.download_button(
+                    label="Click to Download",
+                    data=csv,
+                    file_name="reseller_sales.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="dl_sales"
+                )
         
-        e_c1, e_c2 = st.columns(2)
-        with e_c1:
-            exp_brands = st.multiselect("Filter Brands", options=all_brands, default=[], key="res_exp_brand")
-        with e_c2:
-            exp_show = st.selectbox("Show Period", ["Forecast 2026", "History 2025", "All Data"], index=0)
-            
-        disp_cols = [brand_col, 'SKU_ID', 'Product_Name', tier_col]
-        if 'SKU_Focus_Notes' in df_reseller_forecast.columns: disp_cols.append('SKU_Focus_Notes')
+        with col_dl3:
+            if not df_past_rofo_res.empty and st.button("Download Past Rofo", use_container_width=True):
+                csv = df_past_rofo_res.to_csv(index=False)
+                st.download_button(
+                    label="Click to Download",
+                    data=csv,
+                    file_name="reseller_past_rofo.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="dl_rofo"
+                )
         
-        if exp_show == "Forecast 2026": period_cols = fcst_cols
-        elif exp_show == "History 2025": period_cols = hist_cols
-        else: period_cols = sorted_month_cols
-        
-        final_cols = disp_cols + period_cols
-        
-        # Validasi kolom ada
-        final_cols = [c for c in final_cols if c in df_reseller_forecast.columns]
-        
-        df_exp = df_reseller_forecast.copy()
-        if exp_brands: df_exp = df_exp[df_exp[brand_col].isin(exp_brands)]
-        
-        df_disp_exp = df_exp[final_cols].head(100).copy()
-        for c in period_cols: 
-            if c in df_disp_exp.columns: df_disp_exp[c] = df_disp_exp[c].apply(lambda x: f"{x:,.0f}")
-            
-        st.dataframe(df_disp_exp, use_container_width=True)
-        
-        csv_res = df_exp.to_csv(index=False)
-        st.download_button("📥 Download Reseller CSV", csv_res, "reseller_forecast_data.csv", "text/csv")
-
-        # ================ SECTION 5: INSIGHTS ================
-        st.divider()
-        st.subheader("💡 Key Insights")
-        
-        insights = []
-        insights.append(f"**📊 Total Forecast 2026:** {total_qty_2026:,.0f} units (Rp {total_val_2026:,.0f})")
-        
-        if brand_col in df_work.columns:
-            brand_sums = df_work.groupby(brand_col)[fcst_cols].sum().sum(axis=1)
-            if not brand_sums.empty:
-                top_b = brand_sums.idxmax()
-                top_b_qty = brand_sums.max()
-                insights.append(f"**🏆 Top Brand (2026):** {top_b} ({top_b_qty:,.0f} units)")
-            
-        monthly_sum_26 = df_work[fcst_cols].sum()
-        if not monthly_sum_26.empty:
-            peak_m = monthly_sum_26.idxmax()
-            peak_v = monthly_sum_26.max()
-            insights.append(f"**🎯 Peak Sales Month (2026):** {peak_m} ({peak_v:,.0f} units)")
-
-        for insight in insights: st.info(insight)
-
-    else:
-        st.error("❌ No Reseller forecast data available")
+        with col_dl4:
+            if not df_past_po_res.empty and st.button("Download Past PO", use_container_width=True):
+                csv = df_past_po_res.to_csv(index=False)
+                st.download_button(
+                    label="Click to Download",
+                    data=csv,
+                    file_name="reseller_past_po.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="dl_po"
+                )
 
 # --- TAB 10: FULFILLMENT COST ANALYSIS (REVISI: GMV CONTRIBUTION) ---
 with tab10:
