@@ -5334,94 +5334,12 @@ with tab8:
         st.info("ℹ️ Please ensure both Ecommerce and Reseller forecast sheets have data for 2026 to generate this analysis.")
 
 
-# --- TAB 9: RESELLER PERFORMANCE DASHBOARD (COMPREHENSIVE) ---
+# --- TAB 9: RESELLER PERFORMANCE DASHBOARD ---
 with tab9:
     st.subheader("🤝 Reseller Performance Dashboard")
     st.markdown("**Comprehensive Reseller Analytics: Forecast Accuracy, Sales Performance & Inventory Planning**")
     
-    # ================ 1. LOAD ADDITIONAL RESELLER DATA ================
-    @st.cache_data(ttl=300)
-    def load_reseller_data(_client):
-        """Load semua data reseller yang baru"""
-        gsheet_url = st.secrets["gsheet_url"]
-        reseller_data = {}
-        
-        try:
-            # 1. Sales Reseller
-            ws_sales_res = _client.open_by_url(gsheet_url).worksheet("Sales_Reseller")
-            df_sales_res = pd.DataFrame(ws_sales_res.get_all_records())
-            df_sales_res.columns = [col.strip() for col in df_sales_res.columns]
-            
-            # Transform ke long format
-            month_cols_sales = [c for c in df_sales_res.columns if any(m in c.upper() for m in 
-                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
-            
-            if month_cols_sales and 'SKU_ID' in df_sales_res.columns:
-                id_cols_sales = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
-                df_sales_res_long = df_sales_res.melt(
-                    id_vars=[c for c in id_cols_sales if c in df_sales_res.columns],
-                    value_vars=month_cols_sales,
-                    var_name='Month_Label',
-                    value_name='Sales_Qty'
-                )
-                df_sales_res_long['Sales_Qty'] = pd.to_numeric(df_sales_res_long['Sales_Qty'], errors='coerce').fillna(0)
-                df_sales_res_long['Month'] = df_sales_res_long['Month_Label'].apply(validate_month_format)
-                reseller_data['sales'] = df_sales_res_long
-            
-            # 2. Past Rofo Reseller
-            ws_rofo_res = _client.open_by_url(gsheet_url).worksheet("Past_Rofo_Reseller")
-            df_rofo_res = pd.DataFrame(ws_rofo_res.get_all_records())
-            df_rofo_res.columns = [col.strip() for col in df_rofo_res.columns]
-            
-            month_cols_rofo = [c for c in df_rofo_res.columns if any(m in c.upper() for m in 
-                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
-            
-            if month_cols_rofo and 'SKU_ID' in df_rofo_res.columns:
-                id_cols_rofo = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
-                df_rofo_res_long = df_rofo_res.melt(
-                    id_vars=[c for c in id_cols_rofo if c in df_rofo_res.columns],
-                    value_vars=month_cols_rofo,
-                    var_name='Month_Label',
-                    value_name='Forecast_Qty'
-                )
-                df_rofo_res_long['Forecast_Qty'] = pd.to_numeric(df_rofo_res_long['Forecast_Qty'], errors='coerce').fillna(0)
-                df_rofo_res_long['Month'] = df_rofo_res_long['Month_Label'].apply(validate_month_format)
-                reseller_data['past_rofo'] = df_rofo_res_long
-            
-            # 3. Past PO Reseller
-            ws_po_res = _client.open_by_url(gsheet_url).worksheet("Past_PO_Reseller")
-            df_po_res = pd.DataFrame(ws_po_res.get_all_records())
-            df_po_res.columns = [col.strip() for col in df_po_res.columns]
-            
-            month_cols_po = [c for c in df_po_res.columns if any(m in c.upper() for m in 
-                          ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
-            
-            if month_cols_po and 'SKU_ID' in df_po_res.columns:
-                id_cols_po = ['SKU_ID', 'Brand', 'Product_Name', 'SKU_Tier', 'Floor_Price']
-                df_po_res_long = df_po_res.melt(
-                    id_vars=[c for c in id_cols_po if c in df_po_res.columns],
-                    value_vars=month_cols_po,
-                    var_name='Month_Label',
-                    value_name='PO_Qty'
-                )
-                df_po_res_long['PO_Qty'] = pd.to_numeric(df_po_res_long['PO_Qty'], errors='coerce').fillna(0)
-                df_po_res_long['Month'] = df_po_res_long['Month_Label'].apply(validate_month_format)
-                reseller_data['past_po'] = df_po_res_long
-            
-            return reseller_data
-            
-        except Exception as e:
-            st.error(f"Error loading reseller data: {str(e)}")
-            return {}
-    
-    # Load data reseller tambahan
-    reseller_additional_data = load_reseller_data(client)
-    
-    df_sales_res = df_sales_reseller
-    df_past_rofo_res = df_past_rofo_reseller
-    df_past_po_res = df_past_po_reseller
-    
-    # ================ 2. RESELLER PERFORMANCE TABS ================
+    # ================ 1. RESELLER PERFORMANCE TABS ================
     tab_res1, tab_res2, tab_res3, tab_res4 = st.tabs([
         "📈 Performance Overview",
         "🎯 Forecast Accuracy",
@@ -5451,47 +5369,81 @@ with tab9:
             
             with col3:
                 # Sales Jan 26
-                jan26_sales = df_sales_res[df_sales_res['Month_Label'] == 'Jan 26']['Sales_Qty'].sum() if not df_sales_res.empty else 0
+                jan26_sales = 0
+                if not df_sales_reseller.empty:
+                    # Cari bulan Jan 26
+                    for idx, row in df_sales_reseller.iterrows():
+                        if 'Jan 26' in str(row.get('Month_Label', '')):
+                            jan26_sales += row.get('Sales_Qty', 0)
                 st.metric("Sales Jan 26", f"{jan26_sales:,.0f}")
             
             with col4:
                 # Accuracy Rate (jika ada data)
-                if not df_past_rofo_res.empty and not df_past_po_res.empty:
+                accuracy = 0
+                if not df_past_rofo_reseller.empty and not df_past_po_reseller.empty:
                     # Hitung accuracy untuk Jan 26
-                    rofo_jan = df_past_rofo_res[df_past_rofo_res['Month_Label'] == 'Jan 26']['Forecast_Qty'].sum()
-                    po_jan = df_past_po_res[df_past_po_res['Month_Label'] == 'Jan 26']['PO_Qty'].sum()
-                    accuracy = (min(rofo_jan, po_jan) / max(rofo_jan, po_jan) * 100) if max(rofo_jan, po_jan) > 0 else 0
-                    st.metric("Jan 26 Accuracy", f"{accuracy:.1f}%")
+                    rofo_jan = 0
+                    po_jan = 0
+                    
+                    for idx, row in df_past_rofo_reseller.iterrows():
+                        if 'Jan 26' in str(row.get('Month_Label', '')):
+                            rofo_jan += row.get('Forecast_Qty', 0)
+                    
+                    for idx, row in df_past_po_reseller.iterrows():
+                        if 'Jan 26' in str(row.get('Month_Label', '')):
+                            po_jan += row.get('PO_Qty', 0)
+                    
+                    if rofo_jan > 0 and po_jan > 0:
+                        accuracy = (min(rofo_jan, po_jan) / max(rofo_jan, po_jan) * 100)
+                
+                st.metric("Jan 26 Accuracy", f"{accuracy:.1f}%")
         
         # ROW 2: Triple Comparison Chart
         st.divider()
         st.subheader("📈 Triple Comparison: Forecast vs PO vs Sales")
         
-        if not df_sales_res.empty and not df_past_rofo_res.empty and not df_past_po_res.empty:
+        if not df_sales_reseller.empty and not df_past_rofo_reseller.empty and not df_past_po_reseller.empty:
             # Aggregate monthly data
             monthly_comparison = []
-            all_months = sorted(set(
-                list(df_sales_res['Month'].unique()) + 
-                list(df_past_rofo_res['Month'].unique()) + 
-                list(df_past_po_res['Month'].unique())
-            ))
             
-            for month in all_months:
-                month_label = month.strftime('%b %y')
-                sales_qty = df_sales_res[df_sales_res['Month'] == month]['Sales_Qty'].sum()
-                rofo_qty = df_past_rofo_res[df_past_rofo_res['Month'] == month]['Forecast_Qty'].sum()
-                po_qty = df_past_po_res[df_past_po_res['Month'] == month]['PO_Qty'].sum()
+            # Gabungkan semua bulan unik
+            all_months_set = set()
+            
+            # Add months from sales
+            if 'Month_Label' in df_sales_reseller.columns:
+                all_months_set.update(df_sales_reseller['Month_Label'].unique())
+            
+            # Add months from rofo
+            if 'Month_Label' in df_past_rofo_reseller.columns:
+                all_months_set.update(df_past_rofo_reseller['Month_Label'].unique())
+            
+            # Add months from po
+            if 'Month_Label' in df_past_po_reseller.columns:
+                all_months_set.update(df_past_po_reseller['Month_Label'].unique())
+            
+            for month_label in sorted(all_months_set):
+                # Sales
+                sales_qty = df_sales_reseller[df_sales_reseller['Month_Label'] == month_label]['Sales_Qty'].sum()
+                
+                # Rofo
+                rofo_qty = df_past_rofo_reseller[df_past_rofo_reseller['Month_Label'] == month_label]['Forecast_Qty'].sum()
+                
+                # PO
+                po_qty = df_past_po_reseller[df_past_po_reseller['Month_Label'] == month_label]['PO_Qty'].sum()
+                
+                # Skip jika semua 0
+                if sales_qty == 0 and rofo_qty == 0 and po_qty == 0:
+                    continue
                 
                 monthly_comparison.append({
                     'Month': month_label,
-                    'Date': month,
                     'Sales': sales_qty,
                     'Rofo': rofo_qty,
                     'PO': po_qty
                 })
             
             if monthly_comparison:
-                comp_df = pd.DataFrame(monthly_comparison).sort_values('Date')
+                comp_df = pd.DataFrame(monthly_comparison)
                 
                 fig = go.Figure()
                 
@@ -5529,6 +5481,10 @@ with tab9:
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("📊 No comparison data available for the selected period")
+        else:
+            st.info("ℹ️ Need sales, rofo, and PO data for comparison analysis")
         
         # ROW 3: Brand Performance Matrix
         st.divider()
@@ -5547,9 +5503,12 @@ with tab9:
                 
                 # Sales Jan 26 (jika ada)
                 sales_jan26 = 0
-                if not df_sales_res.empty and 'Brand' in df_sales_res.columns:
-                    sales_jan26 = df_sales_res[(df_sales_res['Brand'] == brand) & 
-                                              (df_sales_res['Month_Label'] == 'Jan 26')]['Sales_Qty'].sum()
+                if not df_sales_reseller.empty and 'Brand' in df_sales_reseller.columns:
+                    brand_sales = df_sales_reseller[
+                        (df_sales_reseller['Brand'] == brand) & 
+                        (df_sales_reseller['Month_Label'].str.contains('Jan 26'))
+                    ]
+                    sales_jan26 = brand_sales['Sales_Qty'].sum()
                 
                 brand_performance.append({
                     'Brand': brand,
@@ -5604,26 +5563,34 @@ with tab9:
     with tab_res2:
         st.subheader("🎯 Reseller Forecast Accuracy Analysis")
         
-        if not df_past_rofo_res.empty and not df_past_po_res.empty:
+        if not df_past_rofo_reseller.empty and not df_past_po_reseller.empty:
             # Hitung accuracy per SKU untuk Jan 26
             accuracy_data = []
             
-            # Get SKUs yang ada di kedua dataset
-            common_skus = set(df_past_rofo_res['SKU_ID']).intersection(set(df_past_po_res['SKU_ID']))
+            # Cari SKU yang ada di Jan 26
+            rofo_jan26 = df_past_rofo_reseller[df_past_rofo_reseller['Month_Label'].str.contains('Jan 26')]
+            po_jan26 = df_past_po_reseller[df_past_po_reseller['Month_Label'].str.contains('Jan 26')]
+            
+            # Gabungkan SKU yang ada di kedua dataset
+            common_skus = set(rofo_jan26['SKU_ID']).intersection(set(po_jan26['SKU_ID']))
             
             for sku in common_skus:
-                rofo_qty = df_past_rofo_res[(df_past_rofo_res['SKU_ID'] == sku) & 
-                                          (df_past_rofo_res['Month_Label'] == 'Jan 26')]['Forecast_Qty'].sum()
-                po_qty = df_past_po_res[(df_past_po_res['SKU_ID'] == sku) & 
-                                      (df_past_po_res['Month_Label'] == 'Jan 26')]['PO_Qty'].sum()
+                rofo_qty = rofo_jan26[rofo_jan26['SKU_ID'] == sku]['Forecast_Qty'].sum()
+                po_qty = po_jan26[po_jan26['SKU_ID'] == sku]['PO_Qty'].sum()
                 
                 if rofo_qty > 0:
                     accuracy = (min(rofo_qty, po_qty) / max(rofo_qty, po_qty) * 100)
                     status = 'Accurate' if accuracy >= 80 else 'Under' if po_qty < rofo_qty else 'Over'
                     
                     # Get brand dan product info
-                    brand = df_past_rofo_res[df_past_rofo_res['SKU_ID'] == sku]['Brand'].iloc[0] if 'Brand' in df_past_rofo_res.columns else ''
-                    product = df_past_rofo_res[df_past_rofo_res['SKU_ID'] == sku]['Product_Name'].iloc[0] if 'Product_Name' in df_past_rofo_res.columns else ''
+                    brand = ''
+                    product = ''
+                    
+                    # Cari dari rofo data
+                    sku_rofo_data = rofo_jan26[rofo_jan26['SKU_ID'] == sku]
+                    if not sku_rofo_data.empty:
+                        brand = sku_rofo_data.iloc[0].get('Brand', '')
+                        product = sku_rofo_data.iloc[0].get('Product_Name', '')
                     
                     accuracy_data.append({
                         'SKU_ID': sku,
@@ -5689,7 +5656,7 @@ with tab9:
                 st.divider()
                 st.subheader("🏷️ Accuracy by Brand")
                 
-                if 'Brand' in accuracy_df.columns:
+                if 'Brand' in accuracy_df.columns and not accuracy_df['Brand'].isna().all():
                     brand_accuracy = accuracy_df.groupby('Brand').agg({
                         'SKU_ID': 'count',
                         'Accuracy': 'mean',
@@ -5739,6 +5706,10 @@ with tab9:
                     use_container_width=True,
                     height=400
                 )
+            else:
+                st.info("📊 No accuracy data available for Jan 26")
+        else:
+            st.info("ℹ️ Need past rofo and PO data for accuracy analysis")
     
     # --- TAB 3: FINANCIAL ANALYSIS ---
     with tab_res3:
@@ -5747,7 +5718,7 @@ with tab9:
         # Cek apakah ada data harga
         has_price_data = 'Floor_Price' in df_reseller_forecast.columns
         
-        if has_price_data:
+        if has_price_data and reseller_forecast_cols:
             # Calculate financial projections
             df_financial = df_reseller_forecast.copy()
             
@@ -5760,7 +5731,9 @@ with tab9:
             
             for month_col in reseller_forecast_cols:
                 month_qty = df_financial[month_col].sum()
-                month_revenue = month_qty * df_financial['Floor_Price'].mean() if df_financial['Floor_Price'].mean() > 0 else 0
+                # Gunakan average price untuk menghitung revenue
+                avg_price = df_financial['Floor_Price'].mean() if df_financial['Floor_Price'].mean() > 0 else 0
+                month_revenue = month_qty * avg_price
                 monthly_revenue[month_col] = month_revenue
                 total_revenue_2026 += month_revenue
             
@@ -5794,8 +5767,11 @@ with tab9:
             })
             
             # Sort months chronologically
-            revenue_df['Month_Date'] = revenue_df['Month'].apply(validate_month_format)
-            revenue_df = revenue_df.sort_values('Month_Date')
+            try:
+                revenue_df['Month_Date'] = revenue_df['Month'].apply(validate_month_format)
+                revenue_df = revenue_df.sort_values('Month_Date')
+            except:
+                revenue_df = revenue_df.sort_values('Month')
             
             fig_rev = go.Figure()
             
@@ -5865,7 +5841,10 @@ with tab9:
                     st.plotly_chart(fig_brand_rev, use_container_width=True)
         
         else:
-            st.info("ℹ️ Add 'Floor_Price' column to Reseller forecast data for financial analysis")
+            if not has_price_data:
+                st.info("ℹ️ Add 'Floor_Price' column to Reseller forecast data for financial analysis")
+            else:
+                st.info("ℹ️ No forecast columns available for financial analysis")
     
     # --- TAB 4: DATA EXPLORER ---
     with tab_res4:
@@ -5886,12 +5865,14 @@ with tab9:
                 exp_col1, exp_col2 = st.columns(2)
                 
                 with exp_col1:
-                    exp_brands = st.multiselect(
-                        "Filter Brands",
-                        options=df_reseller_forecast['Brand'].unique().tolist() if 'Brand' in df_reseller_forecast.columns else [],
-                        default=[],
-                        key="exp_brands_fcst"
-                    )
+                    exp_brands = []
+                    if 'Brand' in df_reseller_forecast.columns:
+                        exp_brands = st.multiselect(
+                            "Filter Brands",
+                            options=df_reseller_forecast['Brand'].unique().tolist(),
+                            default=[],
+                            key="exp_brands_fcst"
+                        )
                 
                 with exp_col2:
                     exp_months = st.multiselect(
@@ -5918,33 +5899,41 @@ with tab9:
                     use_container_width=True,
                     height=400
                 )
+            else:
+                st.info("No forecast data available")
         
         with exp_tab2:
             st.markdown("**Sales History Data**")
-            if not df_sales_res.empty:
+            if not df_sales_reseller.empty:
                 st.dataframe(
-                    df_sales_res.sort_values('Month', ascending=False).head(100),
+                    df_sales_reseller.sort_values('Month', ascending=False).head(100),
                     use_container_width=True,
                     height=400
                 )
+            else:
+                st.info("No sales data available")
         
         with exp_tab3:
             st.markdown("**Past Rofo Data**")
-            if not df_past_rofo_res.empty:
+            if not df_past_rofo_reseller.empty:
                 st.dataframe(
-                    df_past_rofo_res,
+                    df_past_rofo_reseller,
                     use_container_width=True,
                     height=400
                 )
+            else:
+                st.info("No past rofo data available")
         
         with exp_tab4:
             st.markdown("**Past PO Data**")
-            if not df_past_po_res.empty:
+            if not df_past_po_reseller.empty:
                 st.dataframe(
-                    df_past_po_res,
+                    df_past_po_reseller,
                     use_container_width=True,
                     height=400
                 )
+            else:
+                st.info("No past PO data available")
         
         # Download Options
         st.divider()
@@ -5953,11 +5942,11 @@ with tab9:
         col_dl1, col_dl2, col_dl3, col_dl4 = st.columns(4)
         
         with col_dl1:
-            if st.button("Download Forecast 2026", use_container_width=True):
-                csv = df_reseller_forecast.to_csv(index=False)
+            if not df_reseller_forecast.empty:
+                csv_fcst = df_reseller_forecast.to_csv(index=False)
                 st.download_button(
-                    label="Click to Download",
-                    data=csv,
+                    label="Download Forecast 2026",
+                    data=csv_fcst,
                     file_name="reseller_forecast_2026.csv",
                     mime="text/csv",
                     use_container_width=True,
@@ -5965,11 +5954,11 @@ with tab9:
                 )
         
         with col_dl2:
-            if not df_sales_res.empty and st.button("Download Sales", use_container_width=True):
-                csv = df_sales_res.to_csv(index=False)
+            if not df_sales_reseller.empty:
+                csv_sales = df_sales_reseller.to_csv(index=False)
                 st.download_button(
-                    label="Click to Download",
-                    data=csv,
+                    label="Download Sales",
+                    data=csv_sales,
                     file_name="reseller_sales.csv",
                     mime="text/csv",
                     use_container_width=True,
@@ -5977,11 +5966,11 @@ with tab9:
                 )
         
         with col_dl3:
-            if not df_past_rofo_res.empty and st.button("Download Past Rofo", use_container_width=True):
-                csv = df_past_rofo_res.to_csv(index=False)
+            if not df_past_rofo_reseller.empty:
+                csv_rofo = df_past_rofo_reseller.to_csv(index=False)
                 st.download_button(
-                    label="Click to Download",
-                    data=csv,
+                    label="Download Past Rofo",
+                    data=csv_rofo,
                     file_name="reseller_past_rofo.csv",
                     mime="text/csv",
                     use_container_width=True,
@@ -5989,11 +5978,11 @@ with tab9:
                 )
         
         with col_dl4:
-            if not df_past_po_res.empty and st.button("Download Past PO", use_container_width=True):
-                csv = df_past_po_res.to_csv(index=False)
+            if not df_past_po_reseller.empty:
+                csv_po = df_past_po_reseller.to_csv(index=False)
                 st.download_button(
-                    label="Click to Download",
-                    data=csv,
+                    label="Download Past PO",
+                    data=csv_po,
                     file_name="reseller_past_po.csv",
                     mime="text/csv",
                     use_container_width=True,
