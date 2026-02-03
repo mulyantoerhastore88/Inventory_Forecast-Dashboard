@@ -629,7 +629,11 @@ def load_and_process_data(_client):
 
         return data
         
-    # --- FUNGSI BARU: LOAD DATA RESELLER LENGKAP ---
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        return {}
+
+# --- FUNGSI BARU: LOAD DATA RESELLER LENGKAP ---
 @st.cache_data(ttl=300, show_spinner=False)
 def load_reseller_complete_data(_client):
     """
@@ -748,6 +752,7 @@ def load_reseller_complete_data(_client):
     except Exception as e:
         st.error(f"❌ Error loading reseller data: {str(e)}")
         return {}
+
 # --- ====================================================== ---
 # ---                FINANCIAL FUNCTIONS                    ---
 # --- ====================================================== ---
@@ -1155,10 +1160,6 @@ def calculate_inventory_metrics_with_3month_avg(df_stock, df_sales, df_product):
         metrics['inventory_value_score'] = (len(df_inventory[df_inventory['Inventory_Status'] == 'Ideal/Healthy']) / 
                                             len(df_inventory) * 100) if len(df_inventory) > 0 else 0
         
-        return metrics
-        
-    except Exception as e:
-        st.error(f"Inventory metrics error: {str(e)}")
         return metrics
         
     except Exception as e:
@@ -3965,7 +3966,7 @@ with tab4:
         # Determine which sales columns to show
         sales_cols = []
         for col in filtered_eval_df.columns:
-            if isinstance(col, str) and '-' in col and len(col) in [7, 8]:  # Format like 'Sep-2024' or 'Mar-2025'
+            if isinstance(col, str) and '-' in col and len(col) in [7, 8]:  # Format seperti 'Sep-2024' atau 'Mar-2025'
                 try:
                     # Validate it's a proper month-year format
                     datetime.strptime(col, '%b-%Y')
