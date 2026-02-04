@@ -3840,7 +3840,7 @@ with tab3:
         # SECTION 6: INSIGHTS & RECOMMENDATIONS
         # ============================================
         st.markdown("---")
-        with st.expander("💡 **AI Insights & Recommendations**", expanded=True):
+        with st.expander("💡 **Key Insights & Recommendations**", expanded=True):
             # Generate insights
             insights = []
             
