@@ -1013,19 +1013,22 @@ def calculate_monthly_performance(df_forecast, df_po, df_product):
                 # Calculate metrics
                 df_merged['Absolute_Percentage_Error'] = abs(df_merged['PO_Rofo_Ratio'] - 100)
                 
-                # Hanya hitung MAPE untuk SKU dengan Forecast_Qty > 0
+                # Hanya hitung MAPE untuk SKU dengan Forecast_Qty > 0 (Tetap disimpan untuk data tabel)
                 valid_skus = df_merged[df_merged['Forecast_Qty'] > 0]
                 if not valid_skus.empty:
                     mape = valid_skus['Absolute_Percentage_Error'].mean()
                 else:
                     mape = 0
                     
-                monthly_accuracy = 100 - mape
-                
-                # Status counts
+                # Status counts dihitung lebih dulu
                 status_counts = df_merged['Accuracy_Status'].value_counts().to_dict()
                 total_records = len(df_merged)
                 status_percentages = {k: (v/total_records*100) for k, v in status_counts.items()}
+                
+                # ---> FIX LOGIC ACCURACY <---
+                # Menghitung persentase dari: (Jumlah SKU Accurate / Total SKU) * 100
+                accurate_count = status_counts.get('Accurate', 0)
+                monthly_accuracy = (accurate_count / total_records * 100) if total_records > 0 else 0
                 
                 # Store results
                 monthly_performance[month] = {
