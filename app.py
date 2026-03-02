@@ -4161,7 +4161,16 @@ with tab7:
                         row['Total'] = total_row
                         q_brand_qty.append(row)
                     
-                    df_q_qty = pd.DataFrame(q_brand_qty).sort_values('Total', ascending=False).head(15) # Top 15 Brands
+                    df_all_qty = pd.DataFrame(q_brand_qty)
+                    df_q_qty = df_all_qty.sort_values('Total', ascending=False).head(15) # Top 15 Brands
+                    
+                    # Hitung Grand Total (dari SEMUA brand, bukan hanya top 15)
+                    grand_total_qty = {'Brand': 'TOTAL (ALL BRANDS)'}
+                    for col in active_quarters + ['Total']:
+                        grand_total_qty[col] = df_all_qty[col].sum()
+                    
+                    # Gabungkan baris Total ke dalam dataframe display
+                    df_q_qty = pd.concat([df_q_qty, pd.DataFrame([grand_total_qty])], ignore_index=True)
                     
                     # Tambahkan 'Total' ke kolom yang akan didisplay di Heatmap
                     display_cols = active_quarters + ['Total']
@@ -4174,7 +4183,12 @@ with tab7:
                         text=df_q_qty[display_cols].values,
                         texttemplate="%{text:,.0f}"
                     ))
-                    fig_heat_qty.update_layout(height=500, title="Top 15 Brands - Quarterly Volume")
+                    
+                    fig_heat_qty.update_layout(
+                        height=550, 
+                        title="Top 15 Brands - Quarterly Volume",
+                        yaxis=dict(autorange="reversed") # Balik Y-axis agar Top 1 di atas & Total di bawah
+                    )
                     st.plotly_chart(fig_heat_qty, use_container_width=True)
 
                 # --- VALUE HEATMAP ---
@@ -4199,7 +4213,16 @@ with tab7:
                             row['Total'] = total_row
                             q_brand_val.append(row)
                         
-                        df_q_val = pd.DataFrame(q_brand_val).sort_values('Total', ascending=False).head(15)
+                        df_all_val = pd.DataFrame(q_brand_val)
+                        df_q_val = df_all_val.sort_values('Total', ascending=False).head(15)
+                        
+                        # Hitung Grand Total Value (dari SEMUA brand)
+                        grand_total_val = {'Brand': 'TOTAL (ALL BRANDS)'}
+                        for col in active_quarters + ['Total']:
+                            grand_total_val[col] = df_all_val[col].sum()
+                            
+                        # Gabungkan baris Total ke dalam dataframe display
+                        df_q_val = pd.concat([df_q_val, pd.DataFrame([grand_total_val])], ignore_index=True)
                         
                         # Tambahkan 'Total' ke kolom yang akan didisplay di Heatmap
                         display_cols = active_quarters + ['Total']
@@ -4212,7 +4235,12 @@ with tab7:
                             text=df_q_val[display_cols].values,
                             texttemplate="Rp %{text:,.0f}" # Full number format
                         ))
-                        fig_heat_val.update_layout(height=500, title="Top 15 Brands - Quarterly Revenue Projection")
+                        
+                        fig_heat_val.update_layout(
+                            height=550, 
+                            title="Top 15 Brands - Quarterly Revenue Projection",
+                            yaxis=dict(autorange="reversed") # Balik Y-axis agar Top 1 di atas & Total di bawah
+                        )
                         st.plotly_chart(fig_heat_val, use_container_width=True)
                     else:
                         st.warning("⚠️ Data Harga (Floor_Price) tidak ditemukan.")
