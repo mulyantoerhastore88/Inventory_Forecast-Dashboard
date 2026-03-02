@@ -4163,12 +4163,15 @@ with tab7:
                     
                     df_q_qty = pd.DataFrame(q_brand_qty).sort_values('Total', ascending=False).head(15) # Top 15 Brands
                     
+                    # Tambahkan 'Total' ke kolom yang akan didisplay di Heatmap
+                    display_cols = active_quarters + ['Total']
+                    
                     fig_heat_qty = go.Figure(data=go.Heatmap(
-                        z=df_q_qty[active_quarters].values,
-                        x=active_quarters,
+                        z=df_q_qty[display_cols].values,
+                        x=display_cols,
                         y=df_q_qty['Brand'],
                         colorscale='Blues',
-                        text=df_q_qty[active_quarters].values,
+                        text=df_q_qty[display_cols].values,
                         texttemplate="%{text:,.0f}"
                     ))
                     fig_heat_qty.update_layout(height=500, title="Top 15 Brands - Quarterly Volume")
@@ -4198,12 +4201,15 @@ with tab7:
                         
                         df_q_val = pd.DataFrame(q_brand_val).sort_values('Total', ascending=False).head(15)
                         
+                        # Tambahkan 'Total' ke kolom yang akan didisplay di Heatmap
+                        display_cols = active_quarters + ['Total']
+                        
                         fig_heat_val = go.Figure(data=go.Heatmap(
-                            z=df_q_val[active_quarters].values,
-                            x=active_quarters,
+                            z=df_q_val[display_cols].values,
+                            x=display_cols,
                             y=df_q_val['Brand'],
                             colorscale='Greens',
-                            text=df_q_val[active_quarters].values,
+                            text=df_q_val[display_cols].values,
                             texttemplate="Rp %{text:,.0f}" # Full number format
                         ))
                         fig_heat_val.update_layout(height=500, title="Top 15 Brands - Quarterly Revenue Projection")
