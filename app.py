@@ -1603,155 +1603,103 @@ with st.sidebar:
     high_margin_threshold = st.slider("High Margin Threshold (%)", 0, 100, 40)
     low_margin_threshold = st.slider("Low Margin Threshold (%)", 0, 100, 20)
     
-    # --- 🎨 THEME SELECTOR (BASED ON UPLOADED IMAGES) ---
+    # --- 🎨 THEME SELECTOR (ENHANCED EDITION) ---
     st.markdown("---")
     st.markdown("### 🎨 UI Theme Settings")
     
     theme_choice = st.selectbox(
         "Pilih Tema Dashboard:",
         [
-            "🔄 Tema Semula (Bawaan)",
-            "⚪ Soft Light UI (Clean & Rounded)", 
-            "⬛ Material Dark (Solid Dashboard)", 
-            "🌌 Neon Purple (Gradient Glow)"
+            "⚪ Tema Semula (Enhanced Light)", 
+            "⬛ Material Dark (Solid & Colored)"
         ],
         index=0
     )
 
     theme_css = ""
     
-    if theme_choice == "⚪ Soft Light UI (Clean & Rounded)":
-        # Referensi: Gambar 1 (Background putih/soft grey, font indigo, shadow lembut)
+    if theme_choice == "⚪ Tema Semula (Enhanced Light)":
+        # Perbaikan: Background utama dibuat soft grey, Chart & Tabel diberi kotak putih & bayangan agar tidak menyatu.
         theme_css = """
         <style>
-            /* Base App & Background */
-            [data-testid="stAppViewContainer"] { background-color: #F8F9FA !important; color: #333333 !important; }
-            [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #F0F0F0 !important; }
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #4A4A4A !important; }
-            hr { border-color: #EAEAEA !important; }
+            /* Background utama dibuat sedikit abu-abu agar chart putih bisa terlihat (pop-out) */
+            [data-testid="stAppViewContainer"] { background-color: #F4F6F9 !important; color: #333333 !important; }
+            [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #EAEAEA !important; }
             
-            /* Custom HTML Cards override to Soft Light Style */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header, .grad-card, .metric-highlight {
-                background: #FFFFFF !important;
-                border: 1px solid #F0F0F0 !important;
-                border-radius: 16px !important;
-                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.03) !important;
-                color: #333333 !important;
-            }
-            
-            /* Nilai angka menggunakan warna Indigo/Soft Blue khas gambar 1 */
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title, .grad-value { 
-                color: #6366F1 !important; 
-                font-weight: 800 !important; 
-                text-shadow: none !important;
-            }
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title, .grad-label { 
-                color: #888888 !important; 
-                font-weight: 600 !important; 
-            }
-            
-            /* Native Streamlit Metrics & Tables */
-            [data-testid="stMetric"], .stDataFrame > div {
+            /* Membungkus Chart Plotly dengan kotak putih & shadow */
+            .stPlotlyChart {
                 background-color: #FFFFFF !important;
-                border-radius: 16px !important;
-                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.03) !important;
-                border: 1px solid #F0F0F0 !important;
-                padding: 15px !important;
+                border-radius: 12px !important;
+                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.05) !important;
+                padding: 10px !important;
             }
-            [data-testid="stMetricValue"] { color: #6366F1 !important; }
             
-            /* Tabs Styling */
-            .stTabs [data-baseweb="tab"] { background: #FFFFFF !important; border: 1px solid #F0F0F0 !important; color: #888 !important; border-radius: 10px 10px 0 0 !important;}
-            .stTabs [aria-selected="true"] { background: #6366F1 !important; color: white !important; }
+            /* Membungkus Dataframe dengan kotak putih */
+            .stDataFrame {
+                background-color: #FFFFFF !important;
+                border-radius: 12px !important;
+                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.05) !important;
+                padding: 10px !important;
+            }
         </style>
         """
         
-    elif theme_choice == "⬛ Material Dark (Solid Dashboard)":
-        # Referensi: Gambar 3 (Material Dark #1A2035)
+    elif theme_choice == "⬛ Material Dark (Solid & Colored)":
+        # Perbaikan: Tabel diubah dark mode. Card bewarna dibiarkan tetap bewarna (gradient tidak ditimpa).
         theme_css = """
         <style>
             /* Base Material Dark BG */
             [data-testid="stAppViewContainer"] { background-color: #1A2035 !important; color: #FFFFFF !important; }
             [data-testid="stSidebar"] { background-color: #1F283E !important; border-right: none !important; }
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #FFFFFF !important; }
+            h1, h2, h3, h4, p, label, .stMarkdown, .stText { color: #FFFFFF !important; }
             hr { border-color: rgba(255,255,255,0.1) !important; }
             
-            /* Custom HTML Cards */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header, .grad-card, .metric-highlight {
-                background: #1F283E !important; /* Timpa gradient menjadi solid */
+            /* === FIX 1: TABEL (DATAFRAME) MENJADI DARK === */
+            [data-testid="stDataFrame"] > div, 
+            [data-testid="stDataFrame"] table, 
+            [data-testid="stDataFrame"] th, 
+            [data-testid="stDataFrame"] td {
+                background-color: #1F283E !important;
+                color: #FFFFFF !important;
+                border-color: rgba(255,255,255,0.05) !important;
+            }
+            /* Warna Header Tabel sedikit lebih gelap */
+            [data-testid="stDataFrame"] th { background-color: #171d30 !important; }
+            
+            /* === FIX 2: BIARKAN GRADIENT CARD TETAP BERWARNA === */
+            /* Pastikan font di dalam card berwarna tetap putih agar terbaca */
+            .grad-label, .grad-value, .grad-sub, .tm-title, .tm-main-val, .tm-unit, .tm-sub-row, .fin-title, .fin-val, .fin-sub { 
+                color: #FFFFFF !important; 
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.3) !important; 
+            }
+            
+            /* Custom HTML Cards yang memang tidak punya warna khusus, kita buat Dark Blue solid */
+            .p-card, .sku-header, .metric-highlight {
+                background-color: #1F283E !important;
                 border: none !important;
                 border-radius: 8px !important;
                 box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(0,0,0,.4) !important;
                 color: #FFFFFF !important;
             }
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title, .grad-value { color: #FFFFFF !important; text-shadow: none !important;} 
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title, .grad-label { color: #A9AFBB !important; font-weight: 500 !important; }
-            .tm-sub-row { color: #A9AFBB !important; }
+            .p-val, .p-label { color: #FFFFFF !important; text-shadow: none !important;}
             
             /* Native Streamlit Metrics */
-            [data-testid="stMetric"], .stDataFrame > div {
+            [data-testid="stMetric"] {
                 background-color: #1F283E !important;
                 border-radius: 8px !important;
                 border: none !important;
                 box-shadow: 0 4px 20px 0 rgba(0,0,0,.14) !important;
+                padding: 15px !important;
             }
             [data-testid="stMetricValue"] { color: #FFFFFF !important; }
             
-            /* Tabs */
+            /* Tabs Styling */
             .stTabs [data-baseweb="tab"] { background: #1F283E !important; color: #A9AFBB !important; border: none !important; }
             .stTabs [aria-selected="true"] { background: #9C27B0 !important; color: white !important; box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(156,39,176,.4) !important; }
             
             /* Fix Plotly White Backgrounds to Transparent */
             .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
             .js-plotly-plot .plotly text { fill: #A9AFBB !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.05) !important; }
-        </style>
-        """
-        
-    elif theme_choice == "🌌 Neon Purple (Gradient Glow)":
-        # Referensi: Gambar 4 (Gradient Text, #1B1B28 bg)
-        theme_css = """
-        <style>
-            /* Base Deep Navy/Purple BG */
-            [data-testid="stAppViewContainer"] { background-color: #161625 !important; color: #FFFFFF !important; }
-            [data-testid="stSidebar"] { background-color: #1E1E2D !important; border-right: none !important; box-shadow: 2px 0px 15px rgba(0,0,0,0.5) !important;}
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #FFFFFF !important; }
-            hr { border-color: rgba(255,255,255,0.05) !important; }
-            
-            /* Custom HTML Cards */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header, .grad-card, .metric-highlight {
-                background: #1E1E2D !important;
-                border: none !important;
-                border-radius: 10px !important;
-                box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.3) !important;
-                color: #FFFFFF !important;
-            }
-            
-            /* Text Gradient Neon Pink to Cyan (Sesuai Gambar 4) */
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title, .grad-value, [data-testid="stMetricValue"] { 
-                background: linear-gradient(to right, #00f2fe 0%, #f093fb 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                font-weight: 900 !important;
-                text-shadow: none !important;
-            } 
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title, .grad-label { color: #A2A3B7 !important; text-transform: uppercase !important; letter-spacing: 1px !important;}
-            .tm-sub-row { color: #A2A3B7 !important; }
-            
-            /* Native Streamlit Metrics */
-            [data-testid="stMetric"], .stDataFrame > div {
-                background-color: #1E1E2D !important;
-                border-radius: 10px !important;
-                border: none !important;
-            }
-            
-            /* Clean Minimalist Tabs */
-            .stTabs [data-baseweb="tab"] { background: transparent !important; color: #A2A3B7 !important; border: none !important; border-bottom: 2px solid transparent !important; box-shadow: none !important;}
-            .stTabs [aria-selected="true"] { background: transparent !important; border-bottom: 2px solid #f093fb !important; color: #f093fb !important; box-shadow: none !important;}
-            
-            /* Fix Plotly White Backgrounds */
-            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
-            .js-plotly-plot .plotly text { fill: #A2A3B7 !important; }
             .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.05) !important; }
         </style>
         """
