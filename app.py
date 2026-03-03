@@ -1603,16 +1603,106 @@ with st.sidebar:
     high_margin_threshold = st.slider("High Margin Threshold (%)", 0, 100, 40)
     low_margin_threshold = st.slider("Low Margin Threshold (%)", 0, 100, 20)
     
-    # Dark mode toggle
+    # --- 🎨 THEME SELECTOR (PREMIUM UI) ---
     st.markdown("---")
-    dark_mode = st.checkbox("🌙 Dark Mode", value=False)
-    if dark_mode:
-        st.markdown("""
+    st.markdown("### 🎨 UI Theme Settings")
+    
+    theme_choice = st.selectbox(
+        "Pilih Tema Dashboard:",
+        [
+            "⚪ Light Corporate (Default)", 
+            "💼 Dark Corporate", 
+            "🌌 Midnight Ocean", 
+            "💎 Premium Obsidian"
+        ],
+        index=0
+    )
+
+    # CSS Injection berdasarkan Tema
+    theme_css = ""
+    
+    if theme_choice == "💼 Dark Corporate":
+        theme_css = """
         <style>
-            .stApp { background-color: #0E1117; color: white; }
-            .stDataFrame { background-color: #1E1E1E; }
+            /* Base App */
+            [data-testid="stAppViewContainer"] { background-color: #121212; color: #E0E0E0; }
+            [data-testid="stSidebar"] { background-color: #1A1A1A; }
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #E0E0E0 !important; }
+            hr { border-color: #333 !important; }
+            
+            /* Custom Cards Adjustment */
+            .p-card { background-color: #1E1E1E !important; border-top: 5px solid #444 !important; }
+            .p-val, .p-label { color: #E0E0E0 !important; }
+            .p-badge { background-color: #333 !important; color: #FFF !important; }
+            
+            /* Plotly Charts Dark Override (Memaksa background putih di chart jadi dark/transparan) */
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: #121212 !important; }
+            .js-plotly-plot .plotly text { fill: #E0E0E0 !important; }
+            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.1) !important; }
+            
+            /* Tables & Tabs */
+            [data-testid="stDataFrame"] > div { background-color: #1E1E1E !important; border: 1px solid #333; }
+            .stTabs [data-baseweb="tab"] { background: #1A1A1A !important; color: #888 !important; border: 1px solid #333 !important; }
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; color: white !important; }
         </style>
-        """, unsafe_allow_html=True)
+        """
+    elif theme_choice == "🌌 Midnight Ocean":
+        theme_css = """
+        <style>
+            /* Base App */
+            [data-testid="stAppViewContainer"] { background: linear-gradient(135deg, #0B132B 0%, #1C2541 100%); color: #E0FBFC; }
+            [data-testid="stSidebar"] { background-color: rgba(11, 19, 43, 0.95); border-right: 1px solid #3A506B; }
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #E0FBFC !important; }
+            hr { border-color: #3A506B !important; }
+            
+            /* Custom Cards Adjustment (Glassmorphism) */
+            .p-card { background-color: rgba(28, 37, 65, 0.6) !important; backdrop-filter: blur(10px); border: 1px solid #3A506B !important; }
+            .p-val, .p-label { color: #E0FBFC !important; }
+            .p-badge { color: #0B132B !important; background-color: #E0FBFC !important; }
+            
+            /* Plotly Charts Transparent Override */
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
+            .js-plotly-plot .plotly text { fill: #E0FBFC !important; }
+            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(224, 251, 252, 0.1) !important; }
+            
+            /* Tables & Tabs */
+            [data-testid="stDataFrame"] > div { background-color: rgba(28, 37, 65, 0.8) !important; }
+            .stTabs [data-baseweb="tab"] { background: rgba(28, 37, 65, 0.6) !important; color: #888 !important; border: 1px solid #3A506B !important; }
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #3A506B 0%, #5BC0BE 100%) !important; color: white !important; border-color: #5BC0BE !important; }
+        </style>
+        """
+    elif theme_choice == "💎 Premium Obsidian":
+        theme_css = """
+        <style>
+            /* Base App */
+            [data-testid="stAppViewContainer"] { background: radial-gradient(circle at top right, #2b2d42, #0d1b2a); color: #e0e1dd; }
+            [data-testid="stSidebar"] { background-color: #0d1b2a; border-right: 1px solid #1b263b; }
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #e0e1dd !important; }
+            hr { border-color: #415a77 !important; }
+            
+            /* Custom Cards Adjustment */
+            .p-card { 
+                background: linear-gradient(145deg, rgba(27,38,59,0.8) 0%, rgba(13,27,42,0.8) 100%) !important; 
+                border: 1px solid #415a77 !important; 
+                box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important; 
+            }
+            .p-val, .p-label { color: #e0e1dd !important; }
+            .p-badge { background-color: #778da9 !important; color: #0d1b2a !important; }
+            
+            /* Plotly Charts Transparent Override */
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
+            .js-plotly-plot .plotly text { fill: #e0e1dd !important; }
+            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(224, 225, 221, 0.08) !important; }
+            
+            /* Tables & Tabs */
+            [data-testid="stDataFrame"] > div { background-color: #1b263b !important; }
+            .stTabs [data-baseweb="tab"] { background: #1b263b !important; color: #778da9 !important; border: 1px solid #415a77 !important; }
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #415a77 0%, #778da9 100%) !important; color: #0d1b2a !important; font-weight: 900; }
+        </style>
+        """
+
+    if theme_css:
+        st.markdown(theme_css, unsafe_allow_html=True)
 
 # Data quality check
 if 'show_stats' in st.session_state and st.session_state.show_stats:
