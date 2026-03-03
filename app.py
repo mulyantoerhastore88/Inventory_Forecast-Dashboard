@@ -1603,151 +1603,146 @@ with st.sidebar:
     high_margin_threshold = st.slider("High Margin Threshold (%)", 0, 100, 40)
     low_margin_threshold = st.slider("Low Margin Threshold (%)", 0, 100, 20)
     
-    # --- 🎨 THEME SELECTOR (ULTRA PREMIUM UI) ---
+    # --- 🎨 THEME SELECTOR (BASED ON UI TEMPLATES) ---
     st.markdown("---")
     st.markdown("### 🎨 UI Theme Settings")
     
     theme_choice = st.selectbox(
         "Pilih Tema Dashboard:",
         [
-            "⚪ Light Corporate (Standard)", 
-            "✨ Aurora Glassmorphism (Animated)", 
-            "🌃 Midnight Gold (Executive Dark)", 
-            "🚀 Cyberpunk Glow (Neon Dark)"
+            "🟣 Materio Light (Clean & Minimalist)", 
+            "⬛ Material Dark (Solid Colors)", 
+            "🌌 Nalika Neon (Deep Navy & Glow)"
         ],
         index=0
     )
 
     theme_css = ""
     
-    if theme_choice == "✨ Aurora Glassmorphism (Animated)":
+    if theme_choice == "🟣 Materio Light (Clean & Minimalist)":
+        # Referensi: Gambar 4 (Materio Bootstrap 5) & Gambar 1
         theme_css = """
         <style>
-            /* Animated Background */
-            [data-testid="stAppViewContainer"] { 
-                background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
-                background-size: 400% 400%;
-                animation: gradientBG 15s ease infinite;
-                color: #1A202C !important;
-            }
-            @keyframes gradientBG {
-                0% { background-position: 0% 50%; }
-                50% { background-position: 100% 50%; }
-                100% { background-position: 0% 50%; }
-            }
-            [data-testid="stSidebar"] { background-color: rgba(255, 255, 255, 0.4) !important; backdrop-filter: blur(20px); }
+            /* Base App & Background */
+            [data-testid="stAppViewContainer"] { background-color: #F4F5FA !important; color: #3A3B45 !important; }
+            [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: none !important; box-shadow: 2px 0px 10px rgba(0,0,0,0.05) !important; }
+            h1, h2, h3, h4, p, label, .stMarkdown { color: #3A3B45 !important; }
+            hr { border-color: #E7E7E9 !important; }
             
-            /* Native Streamlit Metrics & Cards */
-            [data-testid="stMetric"], .stDataFrame > div { 
-                background: rgba(255, 255, 255, 0.25) !important; 
-                backdrop-filter: blur(12px) !important; 
-                border: 1px solid rgba(255, 255, 255, 0.5) !important; 
-                border-radius: 15px !important; 
-                padding: 15px !important;
-                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15) !important;
-            }
-            [data-testid="stMetricValue"] { color: #1e1e1e !important; text-shadow: 1px 1px 2px rgba(255,255,255,0.8); }
-            
-            /* Override Custom Bapak (p-card, fin-card, tm-card) */
+            /* Custom HTML Cards override to Soft Light Style */
             .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
-                background: rgba(255, 255, 255, 0.3) !important;
-                backdrop-filter: blur(15px) !important;
-                border: 1px solid rgba(255, 255, 255, 0.6) !important;
-                color: #1a1a1a !important;
-                box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1) !important;
+                background: #FFFFFF !important;
+                border: none !important;
+                border-radius: 12px !important;
+                box-shadow: 0px 4px 24px rgba(20, 20, 20, 0.06) !important;
+                color: #3A3B45 !important;
             }
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #111 !important; text-shadow: 1px 1px 0px rgba(255,255,255,0.5); }
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #333 !important; font-weight: 900 !important; }
+            /* Nilai angka menggunakan aksen warna ungu khas Materio */
+            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #9155FD !important; font-weight: 800 !important; text-shadow: none !important;}
+            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #89868D !important; font-weight: 600 !important; }
             
-            /* Plotly Hack to Transparent */
-            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: rgba(255,255,255,0.5) !important; }
+            /* Native Streamlit Metrics & Tables */
+            [data-testid="stMetric"], .stDataFrame > div {
+                background-color: #FFFFFF !important;
+                border-radius: 12px !important;
+                box-shadow: 0px 4px 24px rgba(20, 20, 20, 0.06) !important;
+                border: none !important;
+                padding: 15px !important;
+            }
+            
+            /* Tabs Styling ala Materio */
+            .stTabs [data-baseweb="tab"] { background: transparent !important; border: none !important; color: #89868D !important; box-shadow: none !important;}
+            .stTabs [aria-selected="true"] { background: #9155FD !important; color: white !important; border-radius: 8px !important; }
         </style>
         """
         
-    elif theme_choice == "🌃 Midnight Gold (Executive Dark)":
+    elif theme_choice == "⬛ Material Dark (Solid Colors)":
+        # Referensi: Gambar 3 (Material Dashboard Dark Edition)
         theme_css = """
         <style>
-            /* Base Deep Navy */
-            [data-testid="stAppViewContainer"] { background-color: #0B101E !important; color: #E2E8F0 !important; }
-            [data-testid="stSidebar"] { background-color: #111827 !important; border-right: 1px solid #D4AF37 !important; }
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #F8FAFC !important; }
-            hr { border-color: rgba(212, 175, 55, 0.3) !important; }
+            /* Base Material Dark BG */
+            [data-testid="stAppViewContainer"] { background-color: #1A2035 !important; color: #FFFFFF !important; }
+            [data-testid="stSidebar"] { background-color: #1F283E !important; border-right: none !important; }
+            h1, h2, h3, h4, p, label, .stMarkdown { color: #FFFFFF !important; }
+            hr { border-color: rgba(255,255,255,0.1) !important; }
             
-            /* Metrics & Native Cards */
-            [data-testid="stMetric"], .stDataFrame > div { 
-                background: linear-gradient(180deg, #1A2235 0%, #0F172A 100%) !important;
-                border-top: 3px solid #D4AF37 !important; /* Gold Border */
-                border-radius: 10px !important;
-                padding: 15px !important;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
-            }
-            [data-testid="stMetricValue"] { color: #D4AF37 !important; font-weight: 900 !important; }
-            [data-testid="stMetricDelta"] svg { fill: #D4AF37 !important; }
-            
-            /* Custom HTML Overrides */
+            /* Custom HTML Cards */
             .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
-                background: linear-gradient(145deg, #1e293b, #0f172a) !important;
-                border: 1px solid #334155 !important;
-                border-top: 4px solid #D4AF37 !important;
-                color: #e2e8f0 !important;
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
-            }
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #FBBF24 !important; } /* Amber Gold */
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #94A3B8 !important; }
-            .p-badge, .tm-badge, .b-badge, .eff-badge, .badge-gray { background: #334155 !important; color: #FDE68A !important; }
-            
-            /* Tabs */
-            .stTabs [data-baseweb="tab"] { background: #1E293B !important; color: #94A3B8 !important; border: none !important; }
-            .stTabs [aria-selected="true"] { background: #D4AF37 !important; color: #000 !important; font-weight: 900 !important; }
-            
-            /* Plotly Hack */
-            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: #0F172A !important; }
-            .js-plotly-plot .plotly text { fill: #CBD5E1 !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.05) !important; }
-        </style>
-        """
-        
-    elif theme_choice == "🚀 Cyberpunk Glow (Neon Dark)":
-        theme_css = """
-        <style>
-            /* Pitch Black Base */
-            [data-testid="stAppViewContainer"] { background-color: #050505 !important; color: #fff !important; }
-            [data-testid="stSidebar"] { background-color: #0a0a0a !important; border-right: 1px solid #0ff !important; box-shadow: 5px 0 15px rgba(0, 255, 255, 0.1); }
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #fff !important; text-shadow: 0 0 5px rgba(255,255,255,0.3); }
-            hr { border-color: #ff00ff !important; box-shadow: 0 0 10px #ff00ff; }
-            
-            /* Cyberpunk Metrics */
-            [data-testid="stMetric"], .stDataFrame > div { 
-                background-color: #0a0a0a !important;
-                border: 1px solid #0ff !important;
+                background-color: #1F283E !important;
+                border: none !important;
                 border-radius: 8px !important;
-                padding: 15px !important;
-                box-shadow: 0 0 15px rgba(0, 255, 255, 0.2), inset 0 0 10px rgba(0, 255, 255, 0.05) !important;
-                transition: 0.3s !important;
+                box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(0,0,0,.4) !important;
+                color: #FFFFFF !important;
             }
-            [data-testid="stMetric"]:hover { box-shadow: 0 0 25px rgba(255, 0, 255, 0.4), inset 0 0 15px rgba(255, 0, 255, 0.1) !important; border-color: #ff00ff !important; }
-            [data-testid="stMetricValue"] { color: #0ff !important; text-shadow: 0 0 10px #0ff; font-family: monospace; }
+            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #FFFFFF !important; text-shadow: none !important;} 
+            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #A9AFBB !important; font-weight: 500 !important; }
             
-            /* Custom HTML Overrides */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
-                background-color: #111 !important;
-                border: 1px solid #ff00ff !important;
-                box-shadow: 0 0 10px rgba(255, 0, 255, 0.2) !important;
-                color: #fff !important;
-                border-radius: 4px !important; /* Blocky look */
+            /* Native Streamlit Metrics */
+            [data-testid="stMetric"], .stDataFrame > div {
+                background-color: #1F283E !important;
+                border-radius: 8px !important;
+                border: none !important;
+                box-shadow: 0 4px 20px 0 rgba(0,0,0,.14) !important;
             }
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #f0f !important; text-shadow: 0 0 8px #f0f; font-family: monospace; }
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #0ff !important; letter-spacing: 2px !important; }
-            .p-badge, .tm-badge, .b-badge, .eff-badge, .badge-gray { background: #0ff !important; color: #000 !important; border-radius: 0px !important; box-shadow: 0 0 5px #0ff; }
+            [data-testid="stMetricValue"] { color: #FFFFFF !important; }
             
             /* Tabs */
-            .stTabs [data-baseweb="tab"] { background: #111 !important; color: #888 !important; border: 1px solid #333 !important; border-bottom: none !important; }
-            .stTabs [aria-selected="true"] { background: #ff00ff !important; color: #fff !important; text-shadow: 0 0 5px #fff; box-shadow: 0 -5px 15px rgba(255,0,255,0.4); }
+            .stTabs [data-baseweb="tab"] { background: #1F283E !important; color: #A9AFBB !important; border: none !important; }
+            /* Pink Accent from Material Template */
+            .stTabs [aria-selected="true"] { background: #E91E63 !important; color: white !important; box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(233,30,99,.4) !important; }
             
-            /* Plotly Hack */
-            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: #050505 !important; }
-            .js-plotly-plot .plotly text { fill: #0ff !important; font-family: monospace !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(0,255,255,0.15) !important; stroke-dasharray: 4px; }
+            /* Fix Plotly White Backgrounds to Transparent */
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
+            .js-plotly-plot .plotly text { fill: #A9AFBB !important; }
+            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.1) !important; }
+        </style>
+        """
+        
+    elif theme_choice == "🌌 Nalika Neon (Deep Navy & Glow)":
+        # Referensi: Gambar 5 & 6 (Nalika Admin / Agritech Dashboard)
+        theme_css = """
+        <style>
+            /* Base Deep Navy BG */
+            [data-testid="stAppViewContainer"] { background-color: #15192B !important; color: #FFFFFF !important; }
+            [data-testid="stSidebar"] { background-color: #111424 !important; border-right: 1px solid #1E2440 !important; }
+            h1, h2, h3, h4, p, label, .stMarkdown { color: #FFFFFF !important; }
+            hr { border-color: #1E2440 !important; }
+            
+            /* Custom HTML Cards */
+            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
+                background-color: #1E2440 !important;
+                border: none !important;
+                border-radius: 10px !important;
+                box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2) !important;
+                color: #FFFFFF !important;
+            }
+            /* Text Gradient Neon Blue to match charts */
+            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { 
+                background: linear-gradient(to right, #00d2ff 0%, #3a7bd5 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                font-weight: 900 !important;
+                text-shadow: none !important;
+            } 
+            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #8A92A6 !important; text-transform: uppercase !important; letter-spacing: 1px !important;}
+            
+            /* Native Streamlit Metrics */
+            [data-testid="stMetric"], .stDataFrame > div {
+                background-color: #1E2440 !important;
+                border-radius: 10px !important;
+                border: none !important;
+            }
+            /* Green Neon Accent for Metrics */
+            [data-testid="stMetricValue"] { color: #00E396 !important; } 
+            
+            /* Clean Minimalist Tabs (Underline only) */
+            .stTabs [data-baseweb="tab"] { background: transparent !important; color: #8A92A6 !important; border: none !important; border-bottom: 2px solid transparent !important; box-shadow: none !important;}
+            .stTabs [aria-selected="true"] { background: transparent !important; border-bottom: 2px solid #00d2ff !important; color: #00d2ff !important; box-shadow: none !important;}
+            
+            /* Fix Plotly White Backgrounds */
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
+            .js-plotly-plot .plotly text { fill: #8A92A6 !important; }
+            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.05) !important; }
         </style>
         """
 
