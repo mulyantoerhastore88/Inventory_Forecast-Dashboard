@@ -1603,151 +1603,247 @@ with st.sidebar:
     high_margin_threshold = st.slider("High Margin Threshold (%)", 0, 100, 40)
     low_margin_threshold = st.slider("Low Margin Threshold (%)", 0, 100, 20)
     
-    # --- 🎨 THEME SELECTOR (BASED ON UI TEMPLATES) ---
+    # --- 🎨 PREMIUM THEME STUDIO (INTERAKTIF) ---
     st.markdown("---")
-    st.markdown("### 🎨 UI Theme Settings")
+    st.markdown("### 🎨 Premium Theme Studio")
     
-    theme_choice = st.selectbox(
-        "Pilih Tema Dashboard:",
-        [
-            "🟣 Materio Light (Clean & Minimalist)", 
-            "⬛ Material Dark (Solid Colors)", 
-            "🌌 Nalika Neon (Deep Navy & Glow)"
-        ],
-        index=0
-    )
-
-    theme_css = ""
+    # Inisialisasi session state untuk menyimpan preferensi tema
+    if 'theme_mode' not in st.session_state:
+        st.session_state.theme_mode = 'light'
+    if 'primary_color' not in st.session_state:
+        st.session_state.primary_color = '#667eea'
+    if 'secondary_color' not in st.session_state:
+        st.session_state.secondary_color = '#764ba2'
+    if 'bg_opacity' not in st.session_state:
+        st.session_state.bg_opacity = 100
+    if 'font_scale' not in st.session_state:
+        st.session_state.font_scale = 100
+    if 'glass_effect' not in st.session_state:
+        st.session_state.glass_effect = False
     
-    if theme_choice == "🟣 Materio Light (Clean & Minimalist)":
-        # Referensi: Gambar 4 (Materio Bootstrap 5) & Gambar 1
-        theme_css = """
+    # Layout kontrol tema
+    with st.expander("🎛️ Customize Theme", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            # Mode dasar
+            mode = st.radio(
+                "🌓 Base Mode",
+                options=['Light', 'Dark', 'Auto (System)'],
+                index=0 if st.session_state.theme_mode == 'light' else 1 if st.session_state.theme_mode == 'dark' else 2,
+                horizontal=True,
+                key='mode_radio'
+            )
+            if mode == 'Light':
+                st.session_state.theme_mode = 'light'
+            elif mode == 'Dark':
+                st.session_state.theme_mode = 'dark'
+            else:
+                st.session_state.theme_mode = 'auto'
+            
+            # Warna primer
+            primary = st.color_picker(
+                "🎯 Primary Color",
+                value=st.session_state.primary_color,
+                key='primary_picker'
+            )
+            st.session_state.primary_color = primary
+            
+            # Warna sekunder
+            secondary = st.color_picker(
+                "✨ Secondary Color",
+                value=st.session_state.secondary_color,
+                key='secondary_picker'
+            )
+            st.session_state.secondary_color = secondary
+            
+        with col2:
+            # Opacity latar belakang (untuk efek glass)
+            opacity = st.slider(
+                "🔮 Background Opacity (%)",
+                min_value=0, max_value=100, value=st.session_state.bg_opacity,
+                step=5,
+                help="Semakin rendah, semakin transparan (efek kaca)"
+            )
+            st.session_state.bg_opacity = opacity
+            
+            # Skala font
+            font_scale = st.slider(
+                "🔤 Font Size Scale (%)",
+                min_value=80, max_value=150, value=st.session_state.font_scale,
+                step=5,
+                help="Perbesar/kecilkan ukuran teks"
+            )
+            st.session_state.font_scale = font_scale
+            
+            # Efek glassmorphism
+            glass = st.toggle(
+                "🥂 Glassmorphism Effect",
+                value=st.session_state.glass_effect,
+                help="Efek transparan dengan blur pada card"
+            )
+            st.session_state.glass_effect = glass
+    
+    # Tema preset cepat
+    st.markdown("##### ⚡ Quick Presets")
+    preset_cols = st.columns(5)
+    presets = [
+        ("Professional", "#2563eb", "#7c3aed"),
+        ("Sunset", "#f43f5e", "#fb923c"),
+        ("Forest", "#10b981", "#059669"),
+        ("Ocean", "#0891b2", "#06b6d4"),
+        ("Royal", "#8b5cf6", "#c084fc")
+    ]
+    for i, (name, p1, p2) in enumerate(presets):
+        with preset_cols[i]:
+            if st.button(name, use_container_width=True):
+                st.session_state.primary_color = p1
+                st.session_state.secondary_color = p2
+                st.rerun()
+    
+    # Reset ke default
+    if st.button("↺ Reset to Default Theme", use_container_width=True):
+        st.session_state.theme_mode = 'light'
+        st.session_state.primary_color = '#667eea'
+        st.session_state.secondary_color = '#764ba2'
+        st.session_state.bg_opacity = 100
+        st.session_state.font_scale = 100
+        st.session_state.glass_effect = False
+        st.rerun()
+    
+    # --- Generate CSS dinamis berdasarkan preferensi ---
+    def generate_theme_css():
+        # Tentukan warna latar belakang dasar berdasarkan mode
+        if st.session_state.theme_mode == 'dark':
+            bg_main = '#0E1117'
+            bg_sidebar = '#1E1E1E'
+            text_color = '#FFFFFF'
+            border_color = '#333333'
+            card_bg = '#262730'
+        elif st.session_state.theme_mode == 'auto':
+            # Gunakan media query prefers-color-scheme
+            return f"""
+            @media (prefers-color-scheme: light) {{
+                :root {{
+                    --bg-main: #F8FAFC;
+                    --bg-sidebar: #FFFFFF;
+                    --text: #1E293B;
+                    --border: #E2E8F0;
+                    --card-bg: #FFFFFF;
+                }}
+            }}
+            @media (prefers-color-scheme: dark) {{
+                :root {{
+                    --bg-main: #0E1117;
+                    --bg-sidebar: #1E1E1E;
+                    --text: #FFFFFF;
+                    --border: #333333;
+                    --card-bg: #262730;
+                }}
+            }}
+            
+            [data-testid="stAppViewContainer"] {{
+                background-color: var(--bg-main);
+                color: var(--text);
+            }}
+            [data-testid="stSidebar"] {{
+                background-color: var(--bg-sidebar);
+                border-right: 1px solid var(--border);
+            }}
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText {{
+                color: var(--text) !important;
+            }}
+            """
+        else:  # light
+            bg_main = '#F8FAFC'
+            bg_sidebar = '#FFFFFF'
+            text_color = '#1E293B'
+            border_color = '#E2E8F0'
+            card_bg = '#FFFFFF'
+    
+        # Terapkan opacity jika glass effect aktif
+        if st.session_state.glass_effect:
+            bg_sidebar = f'rgba({int(bg_sidebar[1:3], 16)}, {int(bg_sidebar[3:5], 16)}, {int(bg_sidebar[5:7], 16)}, {st.session_state.bg_opacity/100})'
+            card_bg = f'rgba({int(card_bg[1:3], 16)}, {int(card_bg[3:5], 16)}, {int(card_bg[5:7], 16)}, {st.session_state.bg_opacity/100})'
+            blur = 'blur(10px)'
+        else:
+            blur = 'none'
+    
+        # Skala font
+        font_size_base = f'{st.session_state.font_scale}%'
+    
+        # Warna gradient dari primary ke secondary
+        gradient = f'linear-gradient(135deg, {st.session_state.primary_color} 0%, {st.session_state.secondary_color} 100%)'
+    
+        css = f"""
         <style>
-            /* Base App & Background */
-            [data-testid="stAppViewContainer"] { background-color: #F4F5FA !important; color: #3A3B45 !important; }
-            [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: none !important; box-shadow: 2px 0px 10px rgba(0,0,0,0.05) !important; }
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #3A3B45 !important; }
-            hr { border-color: #E7E7E9 !important; }
+            /* Base variables */
+            [data-testid="stAppViewContainer"] {{
+                background-color: {bg_main};
+                color: {text_color};
+                font-size: {font_size_base};
+            }}
+            [data-testid="stSidebar"] {{
+                background-color: {bg_sidebar};
+                border-right: 1px solid {border_color};
+                backdrop-filter: {blur};
+            }}
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText {{
+                color: {text_color} !important;
+            }}
+            hr {{
+                border-color: {border_color} !important;
+            }}
             
-            /* Custom HTML Cards override to Soft Light Style */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
-                background: #FFFFFF !important;
+            /* Cards and containers */
+            .p-card, .grad-card, .inv-card, .fin-card, .bias-card, .b-card, .eff-card {{
+                background: {card_bg} !important;
+                backdrop-filter: {blur};
+                border: 1px solid {border_color};
+            }}
+            
+            /* Primary gradient elements */
+            .stTabs [aria-selected="true"],
+            .stButton button[data-baseweb="button"]:not([kind="secondary"]) {{
+                background: {gradient} !important;
+                color: white !important;
                 border: none !important;
-                border-radius: 12px !important;
-                box-shadow: 0px 4px 24px rgba(20, 20, 20, 0.06) !important;
-                color: #3A3B45 !important;
-            }
-            /* Nilai angka menggunakan aksen warna ungu khas Materio */
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #9155FD !important; font-weight: 800 !important; text-shadow: none !important;}
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #89868D !important; font-weight: 600 !important; }
+            }}
             
-            /* Native Streamlit Metrics & Tables */
-            [data-testid="stMetric"], .stDataFrame > div {
-                background-color: #FFFFFF !important;
-                border-radius: 12px !important;
-                box-shadow: 0px 4px 24px rgba(20, 20, 20, 0.06) !important;
-                border: none !important;
-                padding: 15px !important;
-            }
+            /* Metric cards */
+            .metric-highlight {{
+                border-top-color: {st.session_state.primary_color} !important;
+            }}
             
-            /* Tabs Styling ala Materio */
-            .stTabs [data-baseweb="tab"] { background: transparent !important; border: none !important; color: #89868D !important; box-shadow: none !important;}
-            .stTabs [aria-selected="true"] { background: #9155FD !important; color: white !important; border-radius: 8px !important; }
+            /* Plotly charts background */
+            .js-plotly-plot .plotly .bg,
+            .js-plotly-plot .plotly .paper-bg {{
+                fill: {bg_main} !important;
+            }}
+            .js-plotly-plot .plotly text {{
+                fill: {text_color} !important;
+            }}
+            
+            /* Dataframe */
+            [data-testid="stDataFrame"] > div {{
+                background-color: {card_bg} !important;
+            }}
         </style>
         """
-        
-    elif theme_choice == "⬛ Material Dark (Solid Colors)":
-        # Referensi: Gambar 3 (Material Dashboard Dark Edition)
-        theme_css = """
-        <style>
-            /* Base Material Dark BG */
-            [data-testid="stAppViewContainer"] { background-color: #1A2035 !important; color: #FFFFFF !important; }
-            [data-testid="stSidebar"] { background-color: #1F283E !important; border-right: none !important; }
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #FFFFFF !important; }
-            hr { border-color: rgba(255,255,255,0.1) !important; }
-            
-            /* Custom HTML Cards */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
-                background-color: #1F283E !important;
-                border: none !important;
-                border-radius: 8px !important;
-                box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(0,0,0,.4) !important;
-                color: #FFFFFF !important;
-            }
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #FFFFFF !important; text-shadow: none !important;} 
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #A9AFBB !important; font-weight: 500 !important; }
-            
-            /* Native Streamlit Metrics */
-            [data-testid="stMetric"], .stDataFrame > div {
-                background-color: #1F283E !important;
-                border-radius: 8px !important;
-                border: none !important;
-                box-shadow: 0 4px 20px 0 rgba(0,0,0,.14) !important;
-            }
-            [data-testid="stMetricValue"] { color: #FFFFFF !important; }
-            
-            /* Tabs */
-            .stTabs [data-baseweb="tab"] { background: #1F283E !important; color: #A9AFBB !important; border: none !important; }
-            /* Pink Accent from Material Template */
-            .stTabs [aria-selected="true"] { background: #E91E63 !important; color: white !important; box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(233,30,99,.4) !important; }
-            
-            /* Fix Plotly White Backgrounds to Transparent */
-            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
-            .js-plotly-plot .plotly text { fill: #A9AFBB !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.1) !important; }
-        </style>
-        """
-        
-    elif theme_choice == "🌌 Nalika Neon (Deep Navy & Glow)":
-        # Referensi: Gambar 5 & 6 (Nalika Admin / Agritech Dashboard)
-        theme_css = """
-        <style>
-            /* Base Deep Navy BG */
-            [data-testid="stAppViewContainer"] { background-color: #15192B !important; color: #FFFFFF !important; }
-            [data-testid="stSidebar"] { background-color: #111424 !important; border-right: 1px solid #1E2440 !important; }
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #FFFFFF !important; }
-            hr { border-color: #1E2440 !important; }
-            
-            /* Custom HTML Cards */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
-                background-color: #1E2440 !important;
-                border: none !important;
-                border-radius: 10px !important;
-                box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2) !important;
-                color: #FFFFFF !important;
-            }
-            /* Text Gradient Neon Blue to match charts */
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { 
-                background: linear-gradient(to right, #00d2ff 0%, #3a7bd5 100%);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                font-weight: 900 !important;
-                text-shadow: none !important;
-            } 
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #8A92A6 !important; text-transform: uppercase !important; letter-spacing: 1px !important;}
-            
-            /* Native Streamlit Metrics */
-            [data-testid="stMetric"], .stDataFrame > div {
-                background-color: #1E2440 !important;
-                border-radius: 10px !important;
-                border: none !important;
-            }
-            /* Green Neon Accent for Metrics */
-            [data-testid="stMetricValue"] { color: #00E396 !important; } 
-            
-            /* Clean Minimalist Tabs (Underline only) */
-            .stTabs [data-baseweb="tab"] { background: transparent !important; color: #8A92A6 !important; border: none !important; border-bottom: 2px solid transparent !important; box-shadow: none !important;}
-            .stTabs [aria-selected="true"] { background: transparent !important; border-bottom: 2px solid #00d2ff !important; color: #00d2ff !important; box-shadow: none !important;}
-            
-            /* Fix Plotly White Backgrounds */
-            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
-            .js-plotly-plot .plotly text { fill: #8A92A6 !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.05) !important; }
-        </style>
-        """
-
-    if theme_css:
-        st.markdown(theme_css, unsafe_allow_html=True)
+        return css
+    
+    # Terapkan CSS
+    st.markdown(generate_theme_css(), unsafe_allow_html=True)
+    
+    # Tampilkan preview kecil (opsional)
+    with st.expander("👁️ Live Preview", expanded=False):
+        st.markdown(f"""
+        <div style="padding:1rem; background:{card_bg if 'card_bg' in locals() else '#fff'}; border-radius:8px; border:1px solid {border_color if 'border_color' in locals() else '#ccc'};">
+            <h4 style="color:{st.session_state.primary_color};">Primary Color Sample</h4>
+            <p style="color:{st.session_state.secondary_color};">Secondary Color Sample</p>
+            <p>Ini adalah contoh teks dengan font scale {st.session_state.font_scale}%.</p>
+            <div style="background:{gradient}; padding:0.5rem; border-radius:4px; color:white; text-align:center;">Gradient Button</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Data quality check
 if 'show_stats' in st.session_state and st.session_state.show_stats:
