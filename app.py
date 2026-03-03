@@ -1603,61 +1603,71 @@ with st.sidebar:
     high_margin_threshold = st.slider("High Margin Threshold (%)", 0, 100, 40)
     low_margin_threshold = st.slider("Low Margin Threshold (%)", 0, 100, 20)
     
-    # --- 🎨 THEME SELECTOR (BASED ON UI TEMPLATES) ---
+    # --- 🎨 THEME SELECTOR (BASED ON UPLOADED IMAGES) ---
     st.markdown("---")
     st.markdown("### 🎨 UI Theme Settings")
     
     theme_choice = st.selectbox(
         "Pilih Tema Dashboard:",
         [
-            "🟣 Materio Light (Clean & Minimalist)", 
-            "⬛ Material Dark (Solid Colors)", 
-            "🌌 Nalika Neon (Deep Navy & Glow)"
+            "🔄 Tema Semula (Bawaan)",
+            "⚪ Soft Light UI (Clean & Rounded)", 
+            "⬛ Material Dark (Solid Dashboard)", 
+            "🌌 Neon Purple (Gradient Glow)"
         ],
         index=0
     )
 
     theme_css = ""
     
-    if theme_choice == "🟣 Materio Light (Clean & Minimalist)":
-        # Referensi: Gambar 4 (Materio Bootstrap 5) & Gambar 1
+    if theme_choice == "⚪ Soft Light UI (Clean & Rounded)":
+        # Referensi: Gambar 1 (Background putih/soft grey, font indigo, shadow lembut)
         theme_css = """
         <style>
             /* Base App & Background */
-            [data-testid="stAppViewContainer"] { background-color: #F4F5FA !important; color: #3A3B45 !important; }
-            [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: none !important; box-shadow: 2px 0px 10px rgba(0,0,0,0.05) !important; }
-            h1, h2, h3, h4, p, label, .stMarkdown { color: #3A3B45 !important; }
-            hr { border-color: #E7E7E9 !important; }
+            [data-testid="stAppViewContainer"] { background-color: #F8F9FA !important; color: #333333 !important; }
+            [data-testid="stSidebar"] { background-color: #FFFFFF !important; border-right: 1px solid #F0F0F0 !important; }
+            h1, h2, h3, h4, p, label, .stMarkdown { color: #4A4A4A !important; }
+            hr { border-color: #EAEAEA !important; }
             
             /* Custom HTML Cards override to Soft Light Style */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
+            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header, .grad-card, .metric-highlight {
                 background: #FFFFFF !important;
-                border: none !important;
-                border-radius: 12px !important;
-                box-shadow: 0px 4px 24px rgba(20, 20, 20, 0.06) !important;
-                color: #3A3B45 !important;
+                border: 1px solid #F0F0F0 !important;
+                border-radius: 16px !important;
+                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.03) !important;
+                color: #333333 !important;
             }
-            /* Nilai angka menggunakan aksen warna ungu khas Materio */
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #9155FD !important; font-weight: 800 !important; text-shadow: none !important;}
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #89868D !important; font-weight: 600 !important; }
+            
+            /* Nilai angka menggunakan warna Indigo/Soft Blue khas gambar 1 */
+            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title, .grad-value { 
+                color: #6366F1 !important; 
+                font-weight: 800 !important; 
+                text-shadow: none !important;
+            }
+            .p-label, .tm-title, .fin-title, .b-label, .eff-title, .grad-label { 
+                color: #888888 !important; 
+                font-weight: 600 !important; 
+            }
             
             /* Native Streamlit Metrics & Tables */
             [data-testid="stMetric"], .stDataFrame > div {
                 background-color: #FFFFFF !important;
-                border-radius: 12px !important;
-                box-shadow: 0px 4px 24px rgba(20, 20, 20, 0.06) !important;
-                border: none !important;
+                border-radius: 16px !important;
+                box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.03) !important;
+                border: 1px solid #F0F0F0 !important;
                 padding: 15px !important;
             }
+            [data-testid="stMetricValue"] { color: #6366F1 !important; }
             
-            /* Tabs Styling ala Materio */
-            .stTabs [data-baseweb="tab"] { background: transparent !important; border: none !important; color: #89868D !important; box-shadow: none !important;}
-            .stTabs [aria-selected="true"] { background: #9155FD !important; color: white !important; border-radius: 8px !important; }
+            /* Tabs Styling */
+            .stTabs [data-baseweb="tab"] { background: #FFFFFF !important; border: 1px solid #F0F0F0 !important; color: #888 !important; border-radius: 10px 10px 0 0 !important;}
+            .stTabs [aria-selected="true"] { background: #6366F1 !important; color: white !important; }
         </style>
         """
         
-    elif theme_choice == "⬛ Material Dark (Solid Colors)":
-        # Referensi: Gambar 3 (Material Dashboard Dark Edition)
+    elif theme_choice == "⬛ Material Dark (Solid Dashboard)":
+        # Referensi: Gambar 3 (Material Dark #1A2035)
         theme_css = """
         <style>
             /* Base Material Dark BG */
@@ -1667,15 +1677,16 @@ with st.sidebar:
             hr { border-color: rgba(255,255,255,0.1) !important; }
             
             /* Custom HTML Cards */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
-                background-color: #1F283E !important;
+            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header, .grad-card, .metric-highlight {
+                background: #1F283E !important; /* Timpa gradient menjadi solid */
                 border: none !important;
                 border-radius: 8px !important;
                 box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(0,0,0,.4) !important;
                 color: #FFFFFF !important;
             }
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { color: #FFFFFF !important; text-shadow: none !important;} 
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #A9AFBB !important; font-weight: 500 !important; }
+            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title, .grad-value { color: #FFFFFF !important; text-shadow: none !important;} 
+            .p-label, .tm-title, .fin-title, .b-label, .eff-title, .grad-label { color: #A9AFBB !important; font-weight: 500 !important; }
+            .tm-sub-row { color: #A9AFBB !important; }
             
             /* Native Streamlit Metrics */
             [data-testid="stMetric"], .stDataFrame > div {
@@ -1688,60 +1699,59 @@ with st.sidebar:
             
             /* Tabs */
             .stTabs [data-baseweb="tab"] { background: #1F283E !important; color: #A9AFBB !important; border: none !important; }
-            /* Pink Accent from Material Template */
-            .stTabs [aria-selected="true"] { background: #E91E63 !important; color: white !important; box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(233,30,99,.4) !important; }
+            .stTabs [aria-selected="true"] { background: #9C27B0 !important; color: white !important; box-shadow: 0 4px 20px 0 rgba(0,0,0,.14), 0 7px 10px -5px rgba(156,39,176,.4) !important; }
             
             /* Fix Plotly White Backgrounds to Transparent */
             .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
             .js-plotly-plot .plotly text { fill: #A9AFBB !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.1) !important; }
+            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.05) !important; }
         </style>
         """
         
-    elif theme_choice == "🌌 Nalika Neon (Deep Navy & Glow)":
-        # Referensi: Gambar 5 & 6 (Nalika Admin / Agritech Dashboard)
+    elif theme_choice == "🌌 Neon Purple (Gradient Glow)":
+        # Referensi: Gambar 4 (Gradient Text, #1B1B28 bg)
         theme_css = """
         <style>
-            /* Base Deep Navy BG */
-            [data-testid="stAppViewContainer"] { background-color: #15192B !important; color: #FFFFFF !important; }
-            [data-testid="stSidebar"] { background-color: #111424 !important; border-right: 1px solid #1E2440 !important; }
+            /* Base Deep Navy/Purple BG */
+            [data-testid="stAppViewContainer"] { background-color: #161625 !important; color: #FFFFFF !important; }
+            [data-testid="stSidebar"] { background-color: #1E1E2D !important; border-right: none !important; box-shadow: 2px 0px 15px rgba(0,0,0,0.5) !important;}
             h1, h2, h3, h4, p, label, .stMarkdown { color: #FFFFFF !important; }
-            hr { border-color: #1E2440 !important; }
+            hr { border-color: rgba(255,255,255,0.05) !important; }
             
             /* Custom HTML Cards */
-            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header {
-                background-color: #1E2440 !important;
+            .p-card, .fin-card, .tm-card, .b-card, .eff-card, .sku-header, .grad-card, .metric-highlight {
+                background: #1E1E2D !important;
                 border: none !important;
                 border-radius: 10px !important;
-                box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.2) !important;
+                box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.3) !important;
                 color: #FFFFFF !important;
             }
-            /* Text Gradient Neon Blue to match charts */
-            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title { 
-                background: linear-gradient(to right, #00d2ff 0%, #3a7bd5 100%);
+            
+            /* Text Gradient Neon Pink to Cyan (Sesuai Gambar 4) */
+            .p-val, .tm-main-val, .fin-val, .b-val, .eff-val, .sku-title, .grad-value, [data-testid="stMetricValue"] { 
+                background: linear-gradient(to right, #00f2fe 0%, #f093fb 100%);
                 -webkit-background-clip: text;
                 -webkit-text-fill-color: transparent;
                 font-weight: 900 !important;
                 text-shadow: none !important;
             } 
-            .p-label, .tm-title, .fin-title, .b-label, .eff-title { color: #8A92A6 !important; text-transform: uppercase !important; letter-spacing: 1px !important;}
+            .p-label, .tm-title, .fin-title, .b-label, .eff-title, .grad-label { color: #A2A3B7 !important; text-transform: uppercase !important; letter-spacing: 1px !important;}
+            .tm-sub-row { color: #A2A3B7 !important; }
             
             /* Native Streamlit Metrics */
             [data-testid="stMetric"], .stDataFrame > div {
-                background-color: #1E2440 !important;
+                background-color: #1E1E2D !important;
                 border-radius: 10px !important;
                 border: none !important;
             }
-            /* Green Neon Accent for Metrics */
-            [data-testid="stMetricValue"] { color: #00E396 !important; } 
             
-            /* Clean Minimalist Tabs (Underline only) */
-            .stTabs [data-baseweb="tab"] { background: transparent !important; color: #8A92A6 !important; border: none !important; border-bottom: 2px solid transparent !important; box-shadow: none !important;}
-            .stTabs [aria-selected="true"] { background: transparent !important; border-bottom: 2px solid #00d2ff !important; color: #00d2ff !important; box-shadow: none !important;}
+            /* Clean Minimalist Tabs */
+            .stTabs [data-baseweb="tab"] { background: transparent !important; color: #A2A3B7 !important; border: none !important; border-bottom: 2px solid transparent !important; box-shadow: none !important;}
+            .stTabs [aria-selected="true"] { background: transparent !important; border-bottom: 2px solid #f093fb !important; color: #f093fb !important; box-shadow: none !important;}
             
             /* Fix Plotly White Backgrounds */
             .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
-            .js-plotly-plot .plotly text { fill: #8A92A6 !important; }
+            .js-plotly-plot .plotly text { fill: #A2A3B7 !important; }
             .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.05) !important; }
         </style>
         """
