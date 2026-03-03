@@ -1603,106 +1603,183 @@ with st.sidebar:
     high_margin_threshold = st.slider("High Margin Threshold (%)", 0, 100, 40)
     low_margin_threshold = st.slider("Low Margin Threshold (%)", 0, 100, 20)
     
-    # --- 🎨 THEME SELECTOR (PREMIUM UI) ---
+    # --- 🎨 THEME SELECTOR (PREMIUM UI - ENHANCED) ---
     st.markdown("---")
-    st.markdown("### 🎨 UI Theme Settings")
+    st.markdown("### 🎨 Premium Theme Studio")
     
-    theme_choice = st.selectbox(
-        "Pilih Tema Dashboard:",
-        [
-            "⚪ Light Corporate (Default)", 
-            "💼 Dark Corporate", 
+    # Theme categories for better organization
+    theme_categories = {
+        "🌙 Dark Series": [
+            "💼 Dark Corporate",
             "🌌 Midnight Ocean", 
             "💎 Premium Obsidian"
         ],
-        index=0
+        "✨ Light Series": [
+            "⚪ Light Corporate (Default)",
+            "🌿 Emerald Forest"
+        ],
+        "🎭 Premium Series": [
+            "👑 Royal Purple",
+            "🌅 Sunset Glow"
+        ]
+    }
+    
+    # Create organized selectbox with categories
+    theme_options = []
+    for category, themes in theme_categories.items():
+        theme_options.extend(themes)
+    
+    selected_theme = st.selectbox(
+        "🎭 Pilih Tema Premium:",
+        options=theme_options,
+        index=theme_options.index("⚪ Light Corporate (Default)") if "⚪ Light Corporate (Default)" in theme_options else 0,
+        help="Pilih tema untuk tampilan dashboard. Preview akan muncul real-time."
     )
-
-    # CSS Injection berdasarkan Tema
+    
+    # Add reset button and custom CSS toggle
+    col_theme1, col_theme2 = st.columns(2)
+    with col_theme1:
+        if st.button("↺ Reset ke Default", use_container_width=True):
+            selected_theme = "⚪ Light Corporate (Default)"
+            st.rerun()
+            
+    with col_theme2:
+        enable_custom_css = st.toggle("✨ Custom CSS", value=False, help="Aktifkan untuk custom CSS tambahan")
+    
+    if enable_custom_css:
+        custom_css = st.text_area(
+            "📝 Tambahkan CSS Kustom:",
+            height=100,
+            placeholder="/* Tambahkan CSS Anda di sini */\n.example-class { color: red; }",
+            help="CSS akan ditambahkan ke tema yang dipilih"
+        )
+    else:
+        custom_css = ""
+    
+    # Preview theme effect
+    with st.expander("🎨 Preview Tema", expanded=False):
+        preview_col1, preview_col2, preview_col3 = st.columns(3)
+        with preview_col1:
+            st.markdown("**Primary Color**")
+            st.markdown("⬤ Primary", unsafe_allow_html=True)
+        with preview_col2:
+            st.markdown("**Secondary**")
+        with preview_col3:
+            st.markdown("**Accent**")
+    
+    # CSS Injection berdasarkan Tema yang dipilih
     theme_css = ""
     
-    if theme_choice == "💼 Dark Corporate":
-        theme_css = """
-        <style>
-            /* Base App */
+    # Enhanced theme definitions
+    theme_styles = {
+        "⚪ Light Corporate (Default)": """
+            /* Light Corporate - Clean & Professional */
+            [data-testid="stAppViewContainer"] { background-color: #F8FAFC; color: #1E293B; }
+            [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #E2E8F0; }
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #1E293B !important; }
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: #F8FAFC !important; }
+            .js-plotly-plot .plotly text { fill: #1E293B !important; }
+            .stTabs [data-baseweb="tab"] { background: #F1F5F9 !important; color: #475569 !important; }
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%) !important; color: white !important; }
+        """,
+        
+        "💼 Dark Corporate": """
+            /* Dark Corporate - Sleek & Modern */
             [data-testid="stAppViewContainer"] { background-color: #121212; color: #E0E0E0; }
-            [data-testid="stSidebar"] { background-color: #1A1A1A; }
+            [data-testid="stSidebar"] { background-color: #1A1A1A; border-right: 1px solid #333; }
             .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #E0E0E0 !important; }
-            hr { border-color: #333 !important; }
-            
-            /* Custom Cards Adjustment */
-            .p-card { background-color: #1E1E1E !important; border-top: 5px solid #444 !important; }
-            .p-val, .p-label { color: #E0E0E0 !important; }
-            .p-badge { background-color: #333 !important; color: #FFF !important; }
-            
-            /* Plotly Charts Dark Override (Memaksa background putih di chart jadi dark/transparan) */
             .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: #121212 !important; }
             .js-plotly-plot .plotly text { fill: #E0E0E0 !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(255,255,255,0.1) !important; }
-            
-            /* Tables & Tabs */
-            [data-testid="stDataFrame"] > div { background-color: #1E1E1E !important; border: 1px solid #333; }
             .stTabs [data-baseweb="tab"] { background: #1A1A1A !important; color: #888 !important; border: 1px solid #333 !important; }
             .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important; color: white !important; }
-        </style>
-        """
-    elif theme_choice == "🌌 Midnight Ocean":
-        theme_css = """
-        <style>
-            /* Base App */
+            .stDataFrame > div { background-color: #1E1E1E !important; border: 1px solid #333; }
+        """,
+        
+        "🌌 Midnight Ocean": """
+            /* Midnight Ocean - Deep Blue Theme */
             [data-testid="stAppViewContainer"] { background: linear-gradient(135deg, #0B132B 0%, #1C2541 100%); color: #E0FBFC; }
             [data-testid="stSidebar"] { background-color: rgba(11, 19, 43, 0.95); border-right: 1px solid #3A506B; }
             .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #E0FBFC !important; }
-            hr { border-color: #3A506B !important; }
-            
-            /* Custom Cards Adjustment (Glassmorphism) */
             .p-card { background-color: rgba(28, 37, 65, 0.6) !important; backdrop-filter: blur(10px); border: 1px solid #3A506B !important; }
-            .p-val, .p-label { color: #E0FBFC !important; }
-            .p-badge { color: #0B132B !important; background-color: #E0FBFC !important; }
-            
-            /* Plotly Charts Transparent Override */
             .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
             .js-plotly-plot .plotly text { fill: #E0FBFC !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(224, 251, 252, 0.1) !important; }
-            
-            /* Tables & Tabs */
-            [data-testid="stDataFrame"] > div { background-color: rgba(28, 37, 65, 0.8) !important; }
             .stTabs [data-baseweb="tab"] { background: rgba(28, 37, 65, 0.6) !important; color: #888 !important; border: 1px solid #3A506B !important; }
-            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #3A506B 0%, #5BC0BE 100%) !important; color: white !important; border-color: #5BC0BE !important; }
-        </style>
-        """
-    elif theme_choice == "💎 Premium Obsidian":
-        theme_css = """
-        <style>
-            /* Base App */
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #3A506B 0%, #5BC0BE 100%) !important; color: white !important; }
+        """,
+        
+        "💎 Premium Obsidian": """
+            /* Premium Obsidian - Dark & Luxurious */
             [data-testid="stAppViewContainer"] { background: radial-gradient(circle at top right, #2b2d42, #0d1b2a); color: #e0e1dd; }
             [data-testid="stSidebar"] { background-color: #0d1b2a; border-right: 1px solid #1b263b; }
             .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #e0e1dd !important; }
-            hr { border-color: #415a77 !important; }
-            
-            /* Custom Cards Adjustment */
             .p-card { 
                 background: linear-gradient(145deg, rgba(27,38,59,0.8) 0%, rgba(13,27,42,0.8) 100%) !important; 
                 border: 1px solid #415a77 !important; 
                 box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important; 
             }
-            .p-val, .p-label { color: #e0e1dd !important; }
-            .p-badge { background-color: #778da9 !important; color: #0d1b2a !important; }
-            
-            /* Plotly Charts Transparent Override */
             .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: transparent !important; }
             .js-plotly-plot .plotly text { fill: #e0e1dd !important; }
-            .js-plotly-plot .plotly .gridlayer path { stroke: rgba(224, 225, 221, 0.08) !important; }
-            
-            /* Tables & Tabs */
-            [data-testid="stDataFrame"] > div { background-color: #1b263b !important; }
             .stTabs [data-baseweb="tab"] { background: #1b263b !important; color: #778da9 !important; border: 1px solid #415a77 !important; }
-            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #415a77 0%, #778da9 100%) !important; color: #0d1b2a !important; font-weight: 900; }
-        </style>
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #415a77 0%, #778da9 100%) !important; color: #0d1b2a !important; }
+        """,
+        
+        "🌿 Emerald Forest": """
+            /* Emerald Forest - Fresh & Natural */
+            [data-testid="stAppViewContainer"] { background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%); color: #1B5E20; }
+            [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #A5D6A7; }
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #1B5E20 !important; }
+            .p-card { background: white !important; border-top: 5px solid #2E7D32 !important; }
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: #E8F5E9 !important; }
+            .js-plotly-plot .plotly text { fill: #1B5E20 !important; }
+            .stTabs [data-baseweb="tab"] { background: #C8E6C9 !important; color: #1B5E20 !important; }
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%) !important; color: white !important; }
+            .stButton button { background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%) !important; color: white !important; }
+        """,
+        
+        "👑 Royal Purple": """
+            /* Royal Purple - Regal & Elegant */
+            [data-testid="stAppViewContainer"] { background: linear-gradient(135deg, #F3E5F5 0%, #E1BEE7 100%); color: #4A148C; }
+            [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #CE93D8; }
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #4A148C !important; }
+            .p-card { background: white !important; border-top: 5px solid #7B1FA2 !important; }
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: #F3E5F5 !important; }
+            .js-plotly-plot .plotly text { fill: #4A148C !important; }
+            .stTabs [data-baseweb="tab"] { background: #E1BEE7 !important; color: #4A148C !important; }
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #7B1FA2 0%, #4A148C 100%) !important; color: white !important; }
+            .stButton button { background: linear-gradient(135deg, #7B1FA2 0%, #4A148C 100%) !important; color: white !important; }
+        """,
+        
+        "🌅 Sunset Glow": """
+            /* Sunset Glow - Warm & Energetic */
+            [data-testid="stAppViewContainer"] { background: linear-gradient(135deg, #FFF3E0 0%, #FFE0B2 100%); color: #BF360C; }
+            [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #FFB74D; }
+            .stMarkdown, h1, h2, h3, h4, p, label, .stText { color: #BF360C !important; }
+            .p-card { background: white !important; border-top: 5px solid #F57C00 !important; }
+            .js-plotly-plot .plotly .bg, .js-plotly-plot .plotly .paper-bg { fill: #FFF3E0 !important; }
+            .js-plotly-plot .plotly text { fill: #BF360C !important; }
+            .stTabs [data-baseweb="tab"] { background: #FFE0B2 !important; color: #BF360C !important; }
+            .stTabs [aria-selected="true"] { background: linear-gradient(135deg, #F57C00 0%, #BF360C 100%) !important; color: white !important; }
+            .stButton button { background: linear-gradient(135deg, #F57C00 0%, #BF360C 100%) !important; color: white !important; }
         """
-
+    }
+    
+    # Get CSS for selected theme
+    theme_css = theme_styles.get(selected_theme, theme_styles["⚪ Light Corporate (Default)"])
+    
+    # Add custom CSS if enabled
+    if enable_custom_css and custom_css:
+        theme_css += f"\n\n/* Custom CSS */\n{custom_css}"
+    
+    # Apply theme
     if theme_css:
-        st.markdown(theme_css, unsafe_allow_html=True)
+        st.markdown(f"<style>{theme_css}</style>", unsafe_allow_html=True)
+        
+        # Add theme indicator
+        st.markdown(f"""
+        <div style="text-align: center; margin-top: 10px; padding: 5px; border-radius: 5px; background-color: rgba(128, 128, 128, 0.1);">
+            <span style="font-size: 0.8rem;">🎨 Active Theme: <strong>{selected_theme}</strong></span>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Data quality check
 if 'show_stats' in st.session_state and st.session_state.show_stats:
