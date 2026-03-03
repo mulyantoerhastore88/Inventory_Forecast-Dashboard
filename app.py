@@ -1603,7 +1603,7 @@ with st.sidebar:
     high_margin_threshold = st.slider("High Margin Threshold (%)", 0, 100, 40)
     low_margin_threshold = st.slider("Low Margin Threshold (%)", 0, 100, 20)
     
-    # --- 🎨 PREMIUM THEME STUDIO (INTERAKTIF) ---
+    # --- 🎨 PREMIUM THEME STUDIO (INTERAKTIF, FIXED) ---
     st.markdown("---")
     st.markdown("### 🎨 Premium Theme Studio")
     
@@ -1711,17 +1711,53 @@ with st.sidebar:
         st.rerun()
     
     # --- Generate CSS dinamis berdasarkan preferensi ---
-    def generate_theme_css():
-        # Tentukan warna latar belakang dasar berdasarkan mode
+    # Pertama, tentukan warna-warna dasar berdasarkan mode
+    if st.session_state.theme_mode == 'dark':
+        bg_main = '#0E1117'
+        bg_sidebar = '#1E1E1E'
+        text_color = '#FFFFFF'
+        border_color = '#333333'
+        card_bg = '#262730'
+    elif st.session_state.theme_mode == 'light':
+        bg_main = '#F8FAFC'
+        bg_sidebar = '#FFFFFF'
+        text_color = '#1E293B'
+        border_color = '#E2E8F0'
+        card_bg = '#FFFFFF'
+    else:  # auto - akan diatur via CSS variables
+        bg_main = 'var(--bg-main)'
+        bg_sidebar = 'var(--bg-sidebar)'
+        text_color = 'var(--text)'
+        border_color = 'var(--border)'
+        card_bg = 'var(--card-bg)'
+    
+    # Terapkan opacity jika glass effect aktif (hanya untuk mode tertentu)
+    if st.session_state.glass_effect and st.session_state.theme_mode != 'auto':
+        # Konversi warna hex ke rgb untuk opacity
+        def hex_to_rgb(hex_color):
+            hex_color = hex_color.lstrip('#')
+            return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        
         if st.session_state.theme_mode == 'dark':
-            bg_main = '#0E1117'
-            bg_sidebar = '#1E1E1E'
-            text_color = '#FFFFFF'
-            border_color = '#333333'
-            card_bg = '#262730'
-        elif st.session_state.theme_mode == 'auto':
-            # Gunakan media query prefers-color-scheme
-            return f"""
+            bg_sidebar_rgb = hex_to_rgb('#1E1E1E')
+            card_bg_rgb = hex_to_rgb('#262730')
+        else:
+            bg_sidebar_rgb = hex_to_rgb('#FFFFFF')
+            card_bg_rgb = hex_to_rgb('#FFFFFF')
+        
+        bg_sidebar = f'rgba({bg_sidebar_rgb[0]}, {bg_sidebar_rgb[1]}, {bg_sidebar_rgb[2]}, {st.session_state.bg_opacity/100})'
+        card_bg = f'rgba({card_bg_rgb[0]}, {card_bg_rgb[1]}, {card_bg_rgb[2]}, {st.session_state.bg_opacity/100})'
+        blur = 'blur(10px)'
+    else:
+        blur = 'none'
+    
+    # Gradient string untuk digunakan di berbagai tempat
+    gradient = f'linear-gradient(135deg, {st.session_state.primary_color} 0%, {st.session_state.secondary_color} 100%)'
+    
+    # Buat CSS string
+    if st.session_state.theme_mode == 'auto':
+        css = f"""
+        <style>
             @media (prefers-color-scheme: light) {{
                 :root {{
                     --bg-main: #F8FAFC;
@@ -1744,43 +1780,52 @@ with st.sidebar:
             [data-testid="stAppViewContainer"] {{
                 background-color: var(--bg-main);
                 color: var(--text);
+                font-size: {st.session_state.font_scale}%;
             }}
             [data-testid="stSidebar"] {{
                 background-color: var(--bg-sidebar);
                 border-right: 1px solid var(--border);
+                backdrop-filter: {blur};
             }}
             .stMarkdown, h1, h2, h3, h4, p, label, .stText {{
                 color: var(--text) !important;
             }}
-            """
-        else:  # light
-            bg_main = '#F8FAFC'
-            bg_sidebar = '#FFFFFF'
-            text_color = '#1E293B'
-            border_color = '#E2E8F0'
-            card_bg = '#FFFFFF'
-    
-        # Terapkan opacity jika glass effect aktif
-        if st.session_state.glass_effect:
-            bg_sidebar = f'rgba({int(bg_sidebar[1:3], 16)}, {int(bg_sidebar[3:5], 16)}, {int(bg_sidebar[5:7], 16)}, {st.session_state.bg_opacity/100})'
-            card_bg = f'rgba({int(card_bg[1:3], 16)}, {int(card_bg[3:5], 16)}, {int(card_bg[5:7], 16)}, {st.session_state.bg_opacity/100})'
-            blur = 'blur(10px)'
-        else:
-            blur = 'none'
-    
-        # Skala font
-        font_size_base = f'{st.session_state.font_scale}%'
-    
-        # Warna gradient dari primary ke secondary
-        gradient = f'linear-gradient(135deg, {st.session_state.primary_color} 0%, {st.session_state.secondary_color} 100%)'
-    
+            hr {{
+                border-color: var(--border) !important;
+            }}
+            .p-card, .grad-card, .inv-card, .fin-card, .bias-card, .b-card, .eff-card {{
+                background: var(--card-bg) !important;
+                backdrop-filter: {blur};
+                border: 1px solid var(--border);
+            }}
+            .stTabs [aria-selected="true"],
+            .stButton button[data-baseweb="button"]:not([kind="secondary"]) {{
+                background: {gradient} !important;
+                color: white !important;
+                border: none !important;
+            }}
+            .metric-highlight {{
+                border-top-color: {st.session_state.primary_color} !important;
+            }}
+            .js-plotly-plot .plotly .bg,
+            .js-plotly-plot .plotly .paper-bg {{
+                fill: var(--bg-main) !important;
+            }}
+            .js-plotly-plot .plotly text {{
+                fill: var(--text) !important;
+            }}
+            [data-testid="stDataFrame"] > div {{
+                background-color: var(--card-bg) !important;
+            }}
+        </style>
+        """
+    else:
         css = f"""
         <style>
-            /* Base variables */
             [data-testid="stAppViewContainer"] {{
                 background-color: {bg_main};
                 color: {text_color};
-                font-size: {font_size_base};
+                font-size: {st.session_state.font_scale}%;
             }}
             [data-testid="stSidebar"] {{
                 background-color: {bg_sidebar};
@@ -1793,28 +1838,20 @@ with st.sidebar:
             hr {{
                 border-color: {border_color} !important;
             }}
-            
-            /* Cards and containers */
             .p-card, .grad-card, .inv-card, .fin-card, .bias-card, .b-card, .eff-card {{
                 background: {card_bg} !important;
                 backdrop-filter: {blur};
                 border: 1px solid {border_color};
             }}
-            
-            /* Primary gradient elements */
             .stTabs [aria-selected="true"],
             .stButton button[data-baseweb="button"]:not([kind="secondary"]) {{
                 background: {gradient} !important;
                 color: white !important;
                 border: none !important;
             }}
-            
-            /* Metric cards */
             .metric-highlight {{
                 border-top-color: {st.session_state.primary_color} !important;
             }}
-            
-            /* Plotly charts background */
             .js-plotly-plot .plotly .bg,
             .js-plotly-plot .plotly .paper-bg {{
                 fill: {bg_main} !important;
@@ -1822,25 +1859,33 @@ with st.sidebar:
             .js-plotly-plot .plotly text {{
                 fill: {text_color} !important;
             }}
-            
-            /* Dataframe */
             [data-testid="stDataFrame"] > div {{
                 background-color: {card_bg} !important;
             }}
         </style>
         """
-        return css
     
     # Terapkan CSS
-    st.markdown(generate_theme_css(), unsafe_allow_html=True)
+    st.markdown(css, unsafe_allow_html=True)
     
     # Tampilkan preview kecil (opsional)
     with st.expander("👁️ Live Preview", expanded=False):
+        # Tentukan warna preview berdasarkan mode yang dipilih
+        if st.session_state.theme_mode == 'dark':
+            preview_bg = '#1E1E1E'
+            preview_text = '#FFFFFF'
+        elif st.session_state.theme_mode == 'light':
+            preview_bg = '#FFFFFF'
+            preview_text = '#1E293B'
+        else:
+            preview_bg = 'var(--card-bg)'
+            preview_text = 'var(--text)'
+        
         st.markdown(f"""
-        <div style="padding:1rem; background:{card_bg if 'card_bg' in locals() else '#fff'}; border-radius:8px; border:1px solid {border_color if 'border_color' in locals() else '#ccc'};">
+        <div style="padding:1rem; background:{preview_bg}; border-radius:8px; border:1px solid {border_color if st.session_state.theme_mode != 'auto' else '#ccc'};">
             <h4 style="color:{st.session_state.primary_color};">Primary Color Sample</h4>
             <p style="color:{st.session_state.secondary_color};">Secondary Color Sample</p>
-            <p>Ini adalah contoh teks dengan font scale {st.session_state.font_scale}%.</p>
+            <p style="color:{preview_text};">Ini adalah contoh teks dengan font scale {st.session_state.font_scale}%.</p>
             <div style="background:{gradient}; padding:0.5rem; border-radius:4px; color:white; text-align:center;">Gradient Button</div>
         </div>
         """, unsafe_allow_html=True)
