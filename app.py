@@ -3369,8 +3369,9 @@ with tab3:
             elif value >= 1_000_000: return f"Rp {value/1e6:,.1f} Jt"
             else: return f"Rp {value:,.0f}"
 
-        val_display = format_currency_smart(total_val)
-        risk_display = format_currency_smart(risk_val)
+        # Gunakan Master Function dari Sidebar
+        val_display = format_rupiah(total_val)
+        risk_display = format_rupiah(risk_val)
 
         # CSS Styles
         st.markdown("""
@@ -3417,7 +3418,7 @@ with tab3:
                 risk_bg), unsafe_allow_html=True)
 
         # ==============================================================================
-        # 3. STOCK COVER & OCCUPANCY DASHBOARD
+        # 3. STOCK COVER & OCCUPANCY DASHBOARD (FIXED RESPONSIVE GAUGE)
         # ==============================================================================
         st.write("")
         st.subheader("⚡ Inventory Health & Warehouse Utilization")
@@ -3430,19 +3431,24 @@ with tab3:
                 mode="gauge+number",
                 value=avg_cover_months,
                 domain={'x': [0, 1], 'y': [0, 1]},
-                title={'text': "Avg Inventory Coverage (Months)", 'font': {'size': 16}},
+                title={'text': "Avg Inventory Coverage (Months)", 'font': {'size': 15, 'color': '#4B5563'}},
+                number={'font': {'size': 36, 'color': '#1F2937'}}, # Kunci ukuran font agar tidak overlap
                 gauge={
-                    'axis': {'range': [0, 6]},
-                    'bar': {'color': "#7986cb"}, # Soft Indigo
+                    'axis': {'range': [0, 6], 'tickwidth': 1, 'tickcolor': "darkblue"},
+                    'bar': {'color': "#7986cb", 'thickness': 0.3}, # Bar dipertipis sedikit
                     'steps': [
-                        {'range': [0, 0.8], 'color': "#ef5350"}, # Soft Red
-                        {'range': [0.8, 2.0], 'color': "#4db6ac"}, # Soft Green
-                        {'range': [2.0, 6], 'color': "#ffb74d"}  # Soft Orange
+                        {'range': [0, 0.8], 'color': "#ef5350"},
+                        {'range': [0.8, 2.0], 'color': "#4db6ac"},
+                        {'range': [2.0, 6], 'color': "#ffb74d"}
                     ],
                     'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 2.0}
                 }
             ))
-            fig_cover.update_layout(height=250, margin=dict(t=40, b=20, l=30, r=30))
+            fig_cover.update_layout(
+                height=320, # Kanvas ditinggikan agar punya ruang saat di-zoom
+                margin=dict(t=50, b=20, l=40, r=40),
+                autosize=True
+            )
             st.plotly_chart(fig_cover, use_container_width=True)
             st.caption("Target: **0.8 - 2.0 Bulan**")
 
@@ -3453,11 +3459,12 @@ with tab3:
                 mode="gauge+number+delta",
                 value=occupancy_pct,
                 domain={'x': [0, 1], 'y': [0, 1]},
-                title={'text': "Warehouse Occupancy (%)", 'font': {'size': 16}},
-                delta={'reference': 80, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}},
+                title={'text': "Warehouse Occupancy (%)", 'font': {'size': 15, 'color': '#4B5563'}},
+                number={'font': {'size': 36, 'color': '#1F2937'}}, # Kunci ukuran font
+                delta={'reference': 80, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}, 'font': {'size': 20}},
                 gauge={
-                    'axis': {'range': [0, 100]},
-                    'bar': {'color': occ_color},
+                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
+                    'bar': {'color': occ_color, 'thickness': 0.3},
                     'steps': [
                         {'range': [0, 60], 'color': "#e0f2f1"}, 
                         {'range': [60, 85], 'color': "#fff3e0"}, 
@@ -3466,56 +3473,170 @@ with tab3:
                     'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': 85}
                 }
             ))
-            fig_occ.update_layout(height=250, margin=dict(t=40, b=20, l=30, r=30))
+            fig_occ.update_layout(
+                height=320, # Kanvas ditinggikan
+                margin=dict(t=50, b=20, l=40, r=40),
+                autosize=True
+            )
             st.plotly_chart(fig_occ, use_container_width=True)
             st.caption(f"Capacity Used: **{current_occupancy:,.0f}** / **{WH_CAPACITY:,.0f}** pcs")
 
         # ==============================================================================
-        # 4. AGING & CATEGORY ANALYSIS
+        # 3.5 ACTIONABLE INVENTORY ALERTS (ACTIVE & REGULAR SKU ONLY)
         # ==============================================================================
         st.divider()
-        col_age, col_cat = st.columns([2, 1])
+        st.subheader("🚨 Actionable Inventory Alerts (Active & Regular SKU Only)")
+        st.caption("Daftar *SKU Regular* berstatus **Active** yang membutuhkan tindakan operasional segera berdasarkan sales 3 bulan terakhir.")
         
-        with col_age:
-            st.subheader("📅 Aging Profile (Expiry)")
-            age_dist = df_batch.groupby('Expiry_Category')['Stock_Qty'].sum().reset_index()
-            order_list = ['❌ EXPIRED', '🚨 Critical (<30 Days)', '⚠️ NED (1-3 Months)', '📅 NED (3-6 Months)', '✅ Safe (6-12 Months)', '🌟 Fresh (>1 Year)', 'Not Defined']
-            age_dist['Expiry_Category'] = pd.Categorical(age_dist['Expiry_Category'], categories=order_list, ordered=True)
-            age_dist = age_dist.sort_values('Expiry_Category')
+        # Ekstrak list SKU yang HANYA berstatus 'SKU Regular' DAN 'Active'
+        active_regular_skus = df_batch[
+            (df_batch['Stock_Category'].str.contains('Regular', case=False, na=False)) &
+            (df_batch['Status'].str.upper() == 'ACTIVE')
+        ]['SKU_ID'].unique()
+        
+        if 'high_stock' in inventory_metrics and 'low_stock' in inventory_metrics:
+            df_low = inventory_metrics['low_stock'].copy()
+            df_high = inventory_metrics['high_stock'].copy()
             
-            color_map = {
-                '❌ EXPIRED': '#ef5350', '🚨 Critical (<30 Days)': '#ef9a9a',
-                '⚠️ NED (1-3 Months)': '#ffb74d', '📅 NED (3-6 Months)': '#ffe082',
-                '✅ Safe (6-12 Months)': '#4db6ac', '🌟 Fresh (>1 Year)': '#26a69a', 'Not Defined': '#90a4ae'
-            }
+            # Terapkan Filter Lapis Ganda
+            df_low = df_low[df_low['SKU_ID'].isin(active_regular_skus)]
+            df_high = df_high[df_high['SKU_ID'].isin(active_regular_skus)]
             
-            fig_age = px.bar(age_dist, x='Expiry_Category', y='Stock_Qty', text_auto='.2s', 
-                             color='Expiry_Category', color_discrete_map=color_map, title="Units by Expiry Status")
-            fig_age.update_layout(height=350, showlegend=False, plot_bgcolor='white', xaxis_title=None)
-            st.plotly_chart(fig_age, use_container_width=True)
-
-        with col_cat:
-            st.subheader("📦 Space by Category")
-            cat_dist = df_batch.groupby('Stock_Category')['Total_Value'].sum().reset_index()
-            fig_pie = px.pie(cat_dist, values='Total_Value', names='Stock_Category', hole=0.4, 
-                             color_discrete_sequence=px.colors.qualitative.Pastel)
-            fig_pie.update_layout(height=350, showlegend=False, margin=dict(t=30, b=10))
-            st.plotly_chart(fig_pie, use_container_width=True)
+            cols_to_show = ['SKU_ID', 'Product_Name', 'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
+            
+            col_alert1, col_alert2 = st.columns(2)
+            
+            with col_alert1:
+                st.markdown(f"**📉 Need Replenishment (< 0.8 Bulan): <span style='color:#EF4444;'>{len(df_low)} SKUs</span>**", unsafe_allow_html=True)
+                if not df_low.empty:
+                    disp_low = df_low[cols_to_show].rename(columns={'Avg_Monthly_Sales_3M':'Sales/Mo', 'Cover_Months':'Cover'})
+                    disp_low['Stock_Qty'] = disp_low['Stock_Qty'].apply(lambda x: f"{x:,.0f}")
+                    disp_low['Sales/Mo'] = disp_low['Sales/Mo'].apply(lambda x: f"{x:,.0f}")
+                    disp_low['Cover'] = disp_low['Cover'].apply(lambda x: f"{x:.1f}")
+                    st.dataframe(disp_low, use_container_width=True, height=250, hide_index=True)
+                else:
+                    st.success("✅ Tidak ada SKU kritis. Semua aman!")
+                    
+            with col_alert2:
+                st.markdown(f"**📦 Overstock / Dead Stock Alert (> 1.5 Bulan): <span style='color:#F59E0B;'>{len(df_high)} SKUs</span>**", unsafe_allow_html=True)
+                if not df_high.empty:
+                    disp_high = df_high[cols_to_show].rename(columns={'Avg_Monthly_Sales_3M':'Sales/Mo', 'Cover_Months':'Cover'})
+                    disp_high['Stock_Qty'] = disp_high['Stock_Qty'].apply(lambda x: f"{x:,.0f}")
+                    disp_high['Sales/Mo'] = disp_high['Sales/Mo'].apply(lambda x: f"{x:,.0f}")
+                    disp_high['Cover'] = disp_high['Cover'].apply(lambda x: "No Sales" if x > 900 else f"{x:.1f}")
+                    st.dataframe(disp_high, use_container_width=True, height=250, hide_index=True)
+                else:
+                    st.success("✅ Tidak ada SKU Overstock. Gudang efisien!")
 
         # ==============================================================================
-        # 5. INVENTORY MATRIX (CATEGORY VS EXPIRY)
+        # 4. ABC ANALYSIS & FINANCIAL AGING EXPOSURE (KHUSUS SKU REGULAR)
         # ==============================================================================
         st.divider()
-        st.subheader("🗓️ Inventory Matrix: Category vs Expiry")
+        st.subheader("🧬 Strategic Inventory Classification & Risk Exposure (SKU Regular)")
+        st.caption("Memetakan prioritas *SKU Regular* berdasarkan nilai aset (ABC Analysis) dan risiko kedaluwarsa secara finansial.")
+        
+        # Buat dataframe khusus SKU Regular untuk perhitungan ABC & Aging
+        df_batch_regular = df_batch[df_batch['Stock_Category'].str.contains('Regular', case=False, na=False)].copy()
+        
+        col_abc, col_age = st.columns([1, 1.2])
+        
+        with col_abc:
+            # --- KONSEP ABC ANALYSIS ---
+            st.markdown("**📊 ABC Inventory Classification (By Value)**")
+            
+            if not df_batch_regular.empty:
+                df_abc = df_batch_regular.groupby(['SKU_ID', 'Product_Name'])['Total_Value'].sum().reset_index()
+                df_abc = df_abc.sort_values('Total_Value', ascending=False)
+                df_abc['Cum_Value'] = df_abc['Total_Value'].cumsum()
+                df_abc['Cum_Pct'] = df_abc['Cum_Value'] / df_abc['Total_Value'].sum() * 100
+                
+                def classify_abc(pct):
+                    if pct <= 80: return 'A (Top 80% Value)'
+                    elif pct <= 95: return 'B (Next 15% Value)'
+                    else: return 'C (Bottom 5% Value)'
+                    
+                df_abc['ABC_Class'] = df_abc['Cum_Pct'].apply(classify_abc)
+                abc_summary = df_abc.groupby('ABC_Class').agg(
+                    SKU_Count=('SKU_ID', 'count'),
+                    Total_Value=('Total_Value', 'sum')
+                ).reset_index()
+                
+                fig_abc = px.pie(abc_summary, values='Total_Value', names='ABC_Class', hole=0.5,
+                                 color='ABC_Class',
+                                 color_discrete_map={
+                                     'A (Top 80% Value)': '#10B981', # Emerald
+                                     'B (Next 15% Value)': '#3B82F6', # Blue
+                                     'C (Bottom 5% Value)': '#9CA3AF'  # Gray
+                                 },
+                                 custom_data=['SKU_Count'])
+                
+                fig_abc.update_traces(
+                    textposition='inside', 
+                    textinfo='percent+label',
+                    hovertemplate="<b>%{label}</b><br>Value: Rp %{value:,.0f}<br>Total SKUs: %{customdata[0]}<extra></extra>"
+                )
+                fig_abc.update_layout(height=380, showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
+                
+                fig_abc.add_annotation(text=f"<b>{len(df_abc)}</b><br>Regular SKUs", x=0.5, y=0.5, font_size=18, showarrow=False)
+                st.plotly_chart(fig_abc, use_container_width=True)
+            else:
+                st.info("Tidak ada data SKU Regular.")
+
+        with col_age:
+            # --- FINANCIAL AGING PROFILE ---
+            st.markdown("**⏳ Financial Exposure by Expiry Status**")
+            
+            if not df_batch_regular.empty:
+                age_dist = df_batch_regular.groupby('Expiry_Category').agg({'Total_Value': 'sum', 'Stock_Qty': 'sum'}).reset_index()
+                order_list = ['❌ EXPIRED', '🚨 Critical (<30 Days)', '⚠️ NED (1-3 Months)', '📅 NED (3-6 Months)', '✅ Safe (6-12 Months)', '🌟 Fresh (>1 Year)', 'Not Defined']
+                age_dist['Expiry_Category'] = pd.Categorical(age_dist['Expiry_Category'], categories=order_list, ordered=True)
+                age_dist = age_dist.sort_values('Expiry_Category')
+                
+                color_map = {
+                    '❌ EXPIRED': '#EF4444', '🚨 Critical (<30 Days)': '#F87171',
+                    '⚠️ NED (1-3 Months)': '#F59E0B', '📅 NED (3-6 Months)': '#FBBF24',
+                    '✅ Safe (6-12 Months)': '#34D399', '🌟 Fresh (>1 Year)': '#10B981', 'Not Defined': '#9CA3AF'
+                }
+                
+                fig_age = px.bar(
+                    age_dist, x='Total_Value', y='Expiry_Category', orientation='h',
+                    color='Expiry_Category', color_discrete_map=color_map,
+                    text=age_dist['Total_Value'].apply(lambda x: f"Rp {x/1e6:,.0f} Jt" if x > 0 else "")
+                )
+                
+                fig_age.update_traces(textposition='outside', textfont=dict(weight='bold', color='#4B5563'))
+                fig_age.update_layout(
+                    height=380, showlegend=False, plot_bgcolor='white',
+                    xaxis=dict(title="Trapped Capital (Rupiah)", showgrid=True, gridcolor='rgba(0,0,0,0.05)'),
+                    yaxis=dict(title="", autorange="reversed"),
+                    margin=dict(t=10, l=10, r=40, b=10)
+                )
+                st.plotly_chart(fig_age, use_container_width=True)
+
+        # ==============================================================================
+        # 5. INVENTORY MATRIX (CATEGORY VS EXPIRY) - PREMIUM STYLING
+        # ==============================================================================
+        st.divider()
+        st.subheader("🗓️ Inventory Matrix: Risk Detection")
+        st.caption("Peta persebaran kuantitas stok berdasarkan Kategori dan Status Kedaluwarsa.")
         
         pivot = pd.pivot_table(df_batch, values='Stock_Qty', index='Stock_Category', columns='Expiry_Category', aggfunc='sum', fill_value=0)
         existing_cols = [c for c in order_list if c in pivot.columns]
         pivot = pivot[existing_cols]
-        pivot['TOTAL'] = pivot.sum(axis=1)
-        pivot = pivot.sort_values('TOTAL', ascending=False)
+        pivot['TOTAL (Qty)'] = pivot.sum(axis=1)
+        pivot = pivot.sort_values('TOTAL (Qty)', ascending=False)
         
-        styler = pivot.style.background_gradient(cmap='Oranges', subset=existing_cols, vmin=0).format("{:,.0f}")
-        st.dataframe(styler, use_container_width=True, height=500)
+        # Styling dengan warna background yang lebih halus (Soft Reds untuk kolom bahaya)
+        risk_cols = [c for c in existing_cols if 'EXPIRED' in c or 'Critical' in c or 'NED' in c]
+        safe_cols = [c for c in existing_cols if 'Safe' in c or 'Fresh' in c]
+        
+        styler = pivot.style.format("{:,.0f}")
+        if risk_cols:
+            styler = styler.background_gradient(cmap='Reds', subset=risk_cols, vmin=0)
+        if safe_cols:
+            styler = styler.background_gradient(cmap='Greens', subset=safe_cols, vmin=0)
+            
+        st.dataframe(styler, use_container_width=True, height=350)
 
         # ==============================================================================
         # 6. DRILL-DOWN ANALYSIS
