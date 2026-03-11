@@ -3369,10 +3369,7 @@ with tab3:
             elif value >= 1_000_000: return f"Rp {value/1e6:,.1f} Jt"
             else: return f"Rp {value:,.0f}"
 
-        # Gunakan Master Function dari Sidebar
-        val_display = format_rupiah(total_val)
-        risk_display = format_rupiah(risk_val)
-
+        
         # CSS Styles
         st.markdown("""
         <style>
