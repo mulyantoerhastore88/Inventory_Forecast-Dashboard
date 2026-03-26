@@ -3914,7 +3914,6 @@ with tab4:
         st.info("👋 Please ensure Sales and Monthly Performance data are loaded to view SKU insights.")
 
 # --- TAB 5: SALES & FORECAST ANALYSIS (EASY TO UNDERSTAND VERSION) ---
-# --- TAB 5: SALES & FORECAST ANALYSIS (EASY TO UNDERSTAND VERSION) ---
 with tab5:
     st.subheader("📈 Realization & Gap Analysis")
     st.caption("Membandingkan Perencanaan (Rofo), Eksekusi (PO), dan Hasil Akhir (Sales)")
@@ -3945,12 +3944,17 @@ with tab5:
         if not filtered_months:
             st.warning("⚠️ Silakan pilih minimal 1 tahun untuk menampilkan data.")
         else:
+            # --- Buat Dataframe Terfilter Global untuk Tab 5 ---
+            df_f_filtered = df_forecast[df_forecast['Month'].isin(filtered_months)]
+            df_p_filtered = df_po[df_po['Month'].isin(filtered_months)]
+            df_s_filtered = df_sales[df_sales['Month'].isin(filtered_months)]
+            
             monthly_data = []
             for month in filtered_months:
-                # Sales, Forecast, PO
-                s_qty = df_sales[df_sales['Month'] == month]['Sales_Qty'].sum()
-                f_qty = df_forecast[df_forecast['Month'] == month]['Forecast_Qty'].sum()
-                p_qty = df_po[df_po['Month'] == month]['PO_Qty'].sum()
+                # Sales, Forecast, PO per bulan
+                s_qty = df_s_filtered[df_s_filtered['Month'] == month]['Sales_Qty'].sum()
+                f_qty = df_f_filtered[df_f_filtered['Month'] == month]['Forecast_Qty'].sum()
+                p_qty = df_p_filtered[df_p_filtered['Month'] == month]['PO_Qty'].sum()
                 
                 monthly_data.append({
                     'Month': month,
@@ -3958,7 +3962,6 @@ with tab5:
                     'Rofo': f_qty,
                     'Sales': s_qty,
                     'PO': p_qty,
-                    # Hitung selisih untuk visualisasi
                     'Gap_Sales_Rofo': s_qty - f_qty
                 })
                 
@@ -3998,27 +4001,23 @@ with tab5:
             c1, c2, c3, c4 = st.columns(4)
             
             with c1:
-                # Rofo (Plan) - Indigo
                 st.markdown(render_kpi("1. PLAN (ROFO)", f"{total_rofo:,.0f}", "Total Forecast", 
                     "linear-gradient(135deg, #7986cb 0%, #5c6bc0 100%)"), unsafe_allow_html=True)
             with c2:
-                # PO (Execution) - Orange
                 po_vs_rofo = (total_po / total_rofo * 100) if total_rofo > 0 else 0
                 st.markdown(render_kpi("2. EXECUTION (PO)", f"{total_po:,.0f}", f"{po_vs_rofo:.1f}% of Plan", 
                     "linear-gradient(135deg, #ffb74d 0%, #ffa726 100%)"), unsafe_allow_html=True)
             with c3:
-                # Sales (Result) - Green
                 sales_vs_rofo = (total_sales / total_rofo * 100) if total_rofo > 0 else 0
                 st.markdown(render_kpi("3. RESULT (SALES)", f"{total_sales:,.0f}", f"{sales_vs_rofo:.1f}% Achievement", 
                     "linear-gradient(135deg, #4db6ac 0%, #26a69a 100%)"), unsafe_allow_html=True)
             with c4:
-                # Gap - Red/Grey
                 gap = total_sales - total_rofo
                 gap_col = "linear-gradient(135deg, #ef5350 0%, #e53935 100%)" if gap < 0 else "linear-gradient(135deg, #66bb6a 0%, #43a047 100%)"
                 st.markdown(render_kpi("GAP (SALES vs PLAN)", f"{gap:+,.0f}", "Units Variance", gap_col), unsafe_allow_html=True)
 
             # ==============================================================================
-            # 3. MAIN COMPARISON CHART (GROUPED BAR) - "MUDAH DIPAHAMI"
+            # 3. MAIN COMPARISON CHART (GROUPED BAR)
             # ==============================================================================
             st.divider()
             st.subheader("📊 Performance Triad: Plan vs Exec vs Result")
@@ -4026,29 +4025,29 @@ with tab5:
 
             fig_main = go.Figure()
 
-            # Rofo (Plan) - Garis Putus-putus (sebagai baseline/acuan)
+            # Rofo (Plan) - Garis Putus-putus
             fig_main.add_trace(go.Scatter(
                 x=df_trend['Month_Txt'], y=df_trend['Rofo'],
                 name='Plan (Rofo)',
                 mode='lines+markers',
-                line=dict(color='#3949AB', width=3, dash='dash'), # Indigo putus-putus
+                line=dict(color='#3949AB', width=3, dash='dash'), 
                 marker=dict(size=8, color='#3949AB')
             ))
 
-            # PO (Execution) - Bar Kuning
+            # PO (Execution)
             fig_main.add_trace(go.Bar(
                 x=df_trend['Month_Txt'], y=df_trend['PO'],
                 name='Execution (PO)',
-                marker_color='#FFB74D', # Soft Orange
+                marker_color='#FFB74D', 
                 text=[f"{x:,.0f}" for x in df_trend['PO']],
                 textposition='auto'
             ))
 
-            # Sales (Result) - Bar Hijau
+            # Sales (Result)
             fig_main.add_trace(go.Bar(
                 x=df_trend['Month_Txt'], y=df_trend['Sales'],
                 name='Result (Sales)',
-                marker_color='#4DB6AC', # Soft Teal
+                marker_color='#4DB6AC', 
                 text=[f"{x:,.0f}" for x in df_trend['Sales']],
                 textposition='auto'
             ))
@@ -4057,27 +4056,93 @@ with tab5:
                 height=450,
                 xaxis_title="Month",
                 yaxis_title="Quantity (Units)",
-                barmode='group', # Grouped bar agar berdampingan
+                barmode='group', 
                 hovermode="x unified",
                 legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
                 plot_bgcolor='white',
                 margin=dict(t=50, b=20, l=20, r=20)
             )
-            
             st.plotly_chart(fig_main, use_container_width=True)
 
             # ==============================================================================
-            # 4. TOP GAP ANALYSIS (PENGGANTI PARETO)
+            # 3.5 [NEW] BRAND BREAKDOWN ANALYSIS
+            # ==============================================================================
+            st.divider()
+            st.subheader("🏢 Performance Breakdown by Brand")
+            st.caption("Melihat sebaran pencapaian Sales vs Forecast di level Brand.")
+
+            # Group data by Brand dari dataframe yang sudah terfilter tahunnya
+            brand_f = df_f_filtered.groupby('Brand')['Forecast_Qty'].sum().reset_index()
+            brand_p = df_p_filtered.groupby('Brand')['PO_Qty'].sum().reset_index()
+            brand_s = df_s_filtered.groupby('Brand')['Sales_Qty'].sum().reset_index()
+            
+            # Merge All
+            df_brand = pd.merge(brand_f, brand_p, on='Brand', how='outer')
+            df_brand = pd.merge(df_brand, brand_s, on='Brand', how='outer').fillna(0)
+            df_brand = df_brand.sort_values('Forecast_Qty', ascending=False) # Urutkan dari Rofo terbesar
+
+            # Plotly Grouped Bar for Brand
+            fig_brand = go.Figure()
+            
+            fig_brand.add_trace(go.Bar(
+                x=df_brand['Brand'], y=df_brand['Forecast_Qty'],
+                name='Plan (Rofo)', marker_color='#3949AB',
+                text=[f"{x:,.0f}" for x in df_brand['Forecast_Qty']], textposition='none'
+            ))
+            
+            fig_brand.add_trace(go.Bar(
+                x=df_brand['Brand'], y=df_brand['PO_Qty'],
+                name='Execution (PO)', marker_color='#FFB74D',
+                text=[f"{x:,.0f}" for x in df_brand['PO_Qty']], textposition='none'
+            ))
+            
+            fig_brand.add_trace(go.Bar(
+                x=df_brand['Brand'], y=df_brand['Sales_Qty'],
+                name='Result (Sales)', marker_color='#4DB6AC',
+                text=[f"{x:,.0f}" for x in df_brand['Sales_Qty']], textposition='none'
+            ))
+            
+            fig_brand.update_layout(
+                height=450,
+                xaxis_title="Brand",
+                yaxis_title="Quantity (Units)",
+                barmode='group',
+                hovermode="x unified",
+                legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+                plot_bgcolor='white',
+                margin=dict(t=50, b=20, l=20, r=20)
+            )
+            st.plotly_chart(fig_brand, use_container_width=True)
+
+            # Tabel Detail per Brand (di dalam Expander agar rapi)
+            with st.expander("📋 Lihat Detail Angka & Pencapaian per Brand"):
+                df_brand_disp = df_brand.copy()
+                # Hitung Persentase Pencapaian
+                df_brand_disp['Achievement (%)'] = np.where(
+                    df_brand_disp['Forecast_Qty'] > 0, 
+                    (df_brand_disp['Sales_Qty'] / df_brand_disp['Forecast_Qty'] * 100), 
+                    0
+                )
+                
+                # Format angka untuk display
+                for c in ['Forecast_Qty', 'PO_Qty', 'Sales_Qty']:
+                    df_brand_disp[c] = df_brand_disp[c].apply(lambda x: f"{x:,.0f}")
+                df_brand_disp['Achievement (%)'] = df_brand_disp['Achievement (%)'].apply(lambda x: f"{x:.1f}%")
+                
+                st.dataframe(
+                    df_brand_disp.rename(columns={'Forecast_Qty':'Plan (Rofo)', 'PO_Qty':'Execution (PO)', 'Sales_Qty':'Result (Sales)'}), 
+                    use_container_width=True, 
+                    hide_index=True
+                )
+
+            # ==============================================================================
+            # 4. TOP GAP ANALYSIS (SKU LEVEL)
             # ==============================================================================
             st.divider()
             st.subheader("🚨 Top Gap Analysis (SKU Level)")
             st.caption(f"Daftar barang dengan selisih terbesar antara Forecast vs Realisasi Sales untuk Tahun {', '.join(map(str, selected_years))}.")
 
-            # FILTER DATA BERDASARKAN TAHUN YANG DIPILIH AGAR SINKRON DENGAN CHART ATASNYA
-            df_f_filtered = df_forecast[df_forecast['Month'].dt.year.isin(selected_years)]
-            df_s_filtered = df_sales[df_sales['Month'].dt.year.isin(selected_years)]
-
-            # Data processing untuk Gap per SKU
+            # Data processing untuk Gap per SKU (menggunakan data terfilter)
             df_f_sku = df_f_filtered.groupby(['SKU_ID', 'Product_Name'])['Forecast_Qty'].sum().reset_index()
             df_s_sku = df_s_filtered.groupby(['SKU_ID', 'Product_Name'])['Sales_Qty'].sum().reset_index()
             
@@ -4085,10 +4150,7 @@ with tab5:
             df_gap['Gap'] = df_gap['Sales_Qty'] - df_gap['Forecast_Qty']
             
             # Pisahkan menjadi dua kelompok
-            # 1. Demand Spikes (Sales > Forecast) -> Under-forecasted
             top_spikes = df_gap[df_gap['Gap'] > 0].sort_values('Gap', ascending=False).head(10)
-            
-            # 2. Low Performance (Sales < Forecast) -> Over-forecasted
             top_drops = df_gap[df_gap['Gap'] < 0].sort_values('Gap', ascending=True).head(10)
 
             c_gap1, c_gap2 = st.columns(2)
@@ -4127,7 +4189,7 @@ with tab5:
                     orientation='h',
                     marker_color='#EF5350', # Red
                     text=[f"{x:,.0f}" for x in top_drops['Gap']],
-                    textposition='auto', # inside/outside auto
+                    textposition='auto',
                     name='Missed Sales'
                 ))
                 fig_drop.update_layout(
