@@ -2635,7 +2635,9 @@ if monthly_performance:
 st.divider()
 
 # --- MAIN TABS ---
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+# Tambahkan "🌟 Executive Summary" di urutan pertama
+tab_summary, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    "🌟 Executive Summary", # <-- TAB BARU OVERVIEW
     "📈 Monthly Performance Details",
     "🏷️ Forecast Performance by Brand & Tier Analysis",
     "📦 Inventory Analysis",
@@ -2645,9 +2647,167 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🛒 Ecommerce Forecast",  
     "💰 Profitability Analysis",
     "🤝 Reseller Forecast",
-    "🚚 Fulfillment Cost Analysis" # <-- TAB BARU
+    "🚚 Fulfillment Cost Analysis"
 ])
 
+# ==============================================================================
+# --- TAB 0: EXECUTIVE SUMMARY (BENTO BOX COMPACT LAYOUT) ---
+# ==============================================================================
+with tab_summary:
+    st.markdown("""
+    <style>
+        /* Desain Bento Box Card / Kompak */
+        .bento-card {
+            background: var(--background-color, rgba(255,255,255,0.05));
+            border: 1px solid rgba(128,128,128,0.2);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            height: 100%;
+        }
+        .bento-title { font-size: 0.8rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;}
+        .bento-val { font-size: 1.6rem; font-weight: 800; line-height: 1.2; margin-bottom: 5px; }
+        .bento-sub { font-size: 0.75rem; color: #aaa; font-weight: 500; }
+        .bento-cta { font-size: 0.75rem; font-weight: 700; color: #6366F1; float: right; cursor: pointer; }
+        .text-green { color: #10B981; }
+        .text-red { color: #EF4444; }
+        .text-amber { color: #F59E0B; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 1. PENGUMPULAN DATA MACRO
+    # Accuracy Data
+    sum_acc_val = 0
+    if monthly_performance:
+        last_mo_key = sorted(monthly_performance.keys())[-1]
+        sum_acc_val = monthly_performance[last_mo_key]['accuracy']
+    
+    # Financial Data
+    sum_rev = df_financial['Revenue'].sum() if not df_financial.empty else 0
+    sum_margin = df_financial['Gross_Margin'].sum() if not df_financial.empty else 0
+    sum_margin_pct = (sum_margin / sum_rev * 100) if sum_rev > 0 else 0
+    
+    # Inventory Data
+    sum_stock_val = 0
+    sum_stock_cover = 0
+    if 'inventory_df' in inventory_metrics:
+        df_inv_sum = inventory_metrics['inventory_df']
+        sum_stock_cover = df_inv_sum[df_inv_sum['Cover_Months'] < 999]['Cover_Months'].mean()
+        sum_stock_val = calculate_inventory_financial(df_stock, df_product)['Total_Value'].sum() if 'Total_Value' in calculate_inventory_financial(df_stock, df_product).columns else 0
+        sum_low_stock = len(inventory_metrics['low_stock'])
+    
+    # Fulfillment Data
+    df_bs_sum = all_data.get('fulfillment', pd.DataFrame())
+    sum_cpo = 0
+    if not df_bs_sum.empty and 'Total Cost' in df_bs_sum.columns:
+        last_bs_row = df_bs_sum.iloc[-1]
+        sum_cpo = last_bs_row['Total Cost'] / last_bs_row['Total Order(BS)'] if last_bs_row['Total Order(BS)'] > 0 else 0
+
+    def fmt_bento_curr(x):
+        if x >= 1e9: return f"Rp {x/1e9:,.1f} M"
+        elif x >= 1e6: return f"Rp {x/1e6:,.1f} Jt"
+        return f"Rp {x:,.0f}"
+
+    # 2. RENDER BARIS 1: COMPACT KPI (4 Kolom)
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        acc_color = "text-green" if sum_acc_val >= 80 else "text-amber" if sum_acc_val >= 70 else "text-red"
+        st.markdown(f"""
+        <div class="bento-card">
+            <div class="bento-title">🎯 Forecast Accuracy</div>
+            <div class="bento-val {acc_color}">{sum_acc_val:.1f}%</div>
+            <div class="bento-sub">Latest Month Performance</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"""
+        <div class="bento-card">
+            <div class="bento-title">💰 YTD Revenue</div>
+            <div class="bento-val">{fmt_bento_curr(sum_rev)}</div>
+            <div class="bento-sub">Margin: {sum_margin_pct:.1f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"""
+        <div class="bento-card">
+            <div class="bento-title">📦 Global Stock Cover</div>
+            <div class="bento-val text-amber">{sum_stock_cover:.1f} Mo</div>
+            <div class="bento-sub">Asset: {fmt_bento_curr(sum_stock_val) if sum_stock_val > 0 else 'N/A'}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with c4:
+        st.markdown(f"""
+        <div class="bento-card">
+            <div class="bento-title">🚚 Cost Per Order (CPO)</div>
+            <div class="bento-val">{fmt_bento_curr(sum_cpo)}</div>
+            <div class="bento-sub">Fulfillment Efficiency</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 3. RENDER BARIS 2: MINI CHARTS (2 Kolom Lebar)
+    st.write("") # Spacer
+    m_col1, m_col2 = st.columns(2)
+    
+    with m_col1:
+        st.markdown("<div class='bento-title' style='margin-bottom: -15px;'>📈 Forecast vs Sales Trend</div>", unsafe_allow_html=True)
+        if not df_sales.empty and not df_forecast.empty:
+            # Aggregate quickly for mini chart
+            agg_sales = df_sales.groupby('Month')['Sales_Qty'].sum().reset_index().tail(6)
+            agg_fcst = df_forecast.groupby('Month')['Forecast_Qty'].sum().reset_index().tail(6)
+            
+            fig_mini1 = go.Figure()
+            fig_mini1.add_trace(go.Bar(x=agg_sales['Month'], y=agg_sales['Sales_Qty'], name='Sales', marker_color='#4DB6AC'))
+            fig_mini1.add_trace(go.Scatter(x=agg_fcst['Month'], y=agg_fcst['Forecast_Qty'], name='Rofo', mode='lines', line=dict(color='#6366F1', width=3)))
+            fig_mini1.update_layout(height=220, margin=dict(l=0, r=0, t=30, b=0), showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.1)'))
+            st.plotly_chart(fig_mini1, use_container_width=True)
+        else:
+            st.caption("Data not enough for trend.")
+
+    with m_col2:
+        st.markdown("<div class='bento-title' style='margin-bottom: -15px;'>⚖️ Fulfillment Efficiency (CPO vs Orders)</div>", unsafe_allow_html=True)
+        if not df_bs_sum.empty:
+            df_bs_mini = df_bs_sum.tail(6)
+            fig_mini2 = go.Figure()
+            fig_mini2.add_trace(go.Bar(x=df_bs_mini['Month'], y=df_bs_mini['Total Order(BS)'], name='Orders', marker_color='#3B82F6', opacity=0.5, yaxis='y1'))
+            fig_mini2.add_trace(go.Scatter(x=df_bs_mini['Month'], y=df_bs_mini['CPO'], name='CPO', mode='lines+markers', line=dict(color='#EF4444', width=2), yaxis='y2'))
+            fig_mini2.update_layout(height=220, margin=dict(l=0, r=0, t=30, b=0), showlegend=False, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', yaxis=dict(showgrid=False), yaxis2=dict(overlaying='y', side='right', showgrid=True, gridcolor='rgba(128,128,128,0.1)'))
+            st.plotly_chart(fig_mini2, use_container_width=True)
+        else:
+            st.caption("Data not enough for trend.")
+
+    # 4. RENDER BARIS 3: ACTIONABLE INSIGHTS (3 Kolom)
+    a1, a2, a3 = st.columns(3)
+    with a1:
+        miss_count = len(df_merged[df_merged['Accuracy_Status'] == 'Under']) if 'df_merged' in locals() and not df_merged.empty else 0
+        st.markdown(f"""
+        <div class="bento-card" style="border-top: 3px solid #EF4444;">
+            <div class="bento-title">🚨 Under Forecast</div>
+            <div class="bento-val text-red">{miss_count} SKUs</div>
+            <div class="bento-sub">Potential lost sales. <span class="bento-cta">Check Detail ➔</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+    with a2:
+        low_stk = sum_low_stock if 'sum_low_stock' in locals() else 0
+        st.markdown(f"""
+        <div class="bento-card" style="border-top: 3px solid #F59E0B;">
+            <div class="bento-title">⚠️ Stock Alert</div>
+            <div class="bento-val text-amber">{low_stk} SKUs</div>
+            <div class="bento-sub">Need immediate PO. <span class="bento-cta">Check Detail ➔</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+    with a3:
+        if not df_financial.empty and 'Gross_Margin' in df_financial.columns:
+            top_sku = df_financial.groupby('Product_Name')['Gross_Margin'].sum().idxmax()
+        else: top_sku = "N/A"
+        st.markdown(f"""
+        <div class="bento-card" style="border-top: 3px solid #10B981;">
+            <div class="bento-title">🏆 Top Profit Contributor</div>
+            <div class="bento-val text-green" style="font-size: 1.1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{str(top_sku)[:25]}</div>
+            <div class="bento-sub">Protect this inventory! <span class="bento-cta">Check Detail ➔</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+        
 # --- TAB 1: MONTHLY PERFORMANCE DETAILS (PREMIUM HEATMAP) ---
 with tab1:
     st.subheader("📅 Monthly Performance Details")
