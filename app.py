@@ -2698,11 +2698,22 @@ with tab_summary:
         sum_low_stock = len(inventory_metrics['low_stock'])
     
     # Fulfillment Data
-    df_bs_sum = all_data.get('fulfillment', pd.DataFrame())
+    df_bs_sum = all_data.get('fulfillment', pd.DataFrame()).copy() # Gunakan .copy() agar data asli aman
     sum_cpo = 0
-    if not df_bs_sum.empty and 'Total Cost' in df_bs_sum.columns:
-        last_bs_row = df_bs_sum.iloc[-1]
-        sum_cpo = last_bs_row['Total Cost'] / last_bs_row['Total Order(BS)'] if last_bs_row['Total Order(BS)'] > 0 else 0
+    if not df_bs_sum.empty and 'Total Cost' in df_bs_sum.columns and 'Total Order(BS)' in df_bs_sum.columns:
+        # Konversi ke numerik untuk jaga-jaga
+        df_bs_sum['Total Cost'] = pd.to_numeric(df_bs_sum['Total Cost'], errors='coerce').fillna(0)
+        df_bs_sum['Total Order(BS)'] = pd.to_numeric(df_bs_sum['Total Order(BS)'], errors='coerce').fillna(0)
+        
+        # Hitung CPO untuk seluruh dataframe agar bisa digambar di grafik
+        df_bs_sum['CPO'] = np.where(
+            df_bs_sum['Total Order(BS)'] > 0, 
+            df_bs_sum['Total Cost'] / df_bs_sum['Total Order(BS)'], 
+            0
+        )
+        
+        # Ambil nilai CPO bulan terakhir untuk angka di KPI Card
+        sum_cpo = df_bs_sum.iloc[-1]['CPO']
 
     def fmt_bento_curr(x):
         if x >= 1e9: return f"Rp {x/1e9:,.1f} M"
