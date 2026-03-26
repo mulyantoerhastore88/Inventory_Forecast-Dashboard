@@ -4180,7 +4180,7 @@ with tab5:
 
             with c_gap2:
                 st.markdown("##### 🐌 Top Slow Moving vs Plan (Sales < Rofo)")
-                st.caption("Barang ini **KURANG LAKU** dibanding prediksi. Cek overstock, perlu promo?")
+                st.caption("Barang ini **Over Estimated** dibanding prediksi. Cek overstock, perlu promo?")
                 
                 fig_drop = go.Figure()
                 fig_drop.add_trace(go.Bar(
