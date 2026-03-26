@@ -3376,15 +3376,16 @@ with tab3:
         risk_val = df_batch[risk_mask]['Total_Value'].sum()
         risk_pct = (risk_val / total_val * 100) if total_val > 0 else 0
 
-        # Helper: Format Uang Pintar
+        # Helper: Format Uang Pintar Internal 
         def format_currency_smart(value):
-            if value >= 1_000_000_000: return f"Rp {value/1e9:,.1f} M"
+            if pd.isna(value): return "Rp 0"
+            if value >= 1_000_000_000: return f"Rp {value/1e9:,.2f} M"
             elif value >= 1_000_000: return f"Rp {value/1e6:,.1f} Jt"
             else: return f"Rp {value:,.0f}"
 
         # Gunakan Master Function dari Sidebar
-        val_display = format_rupiah(total_val)
-        risk_display = format_rupiah(risk_val)
+        val_display = format_currency_smart(total_val)
+        risk_display = format_currency_smart(risk_val)
 
         # CSS Styles
         st.markdown("""
