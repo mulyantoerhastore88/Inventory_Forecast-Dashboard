@@ -4065,11 +4065,11 @@ with tab5:
             st.plotly_chart(fig_main, use_container_width=True)
 
             # ==============================================================================
-            # 3.5 [NEW] BRAND BREAKDOWN ANALYSIS
+            # 3.5 [NEW] BRAND BREAKDOWN ANALYSIS (BULLET CHART & PROGRESS MATRIX)
             # ==============================================================================
             st.divider()
             st.subheader("🏢 Performance Breakdown by Brand")
-            st.caption("Melihat sebaran pencapaian Sales vs Forecast di level Brand.")
+            st.caption("Membandingkan langsung Hasil (Sales) dengan Target (Rofo) dan Eksekusi (PO). Garis biru adalah batas Target.")
 
             # Group data by Brand dari dataframe yang sudah terfilter tahunnya
             brand_f = df_f_filtered.groupby('Brand')['Forecast_Qty'].sum().reset_index()
@@ -4079,60 +4079,94 @@ with tab5:
             # Merge All
             df_brand = pd.merge(brand_f, brand_p, on='Brand', how='outer')
             df_brand = pd.merge(df_brand, brand_s, on='Brand', how='outer').fillna(0)
-            df_brand = df_brand.sort_values('Forecast_Qty', ascending=False) # Urutkan dari Rofo terbesar
-
-            # Plotly Grouped Bar for Brand
-            fig_brand = go.Figure()
             
-            fig_brand.add_trace(go.Bar(
-                x=df_brand['Brand'], y=df_brand['Forecast_Qty'],
-                name='Plan (Rofo)', marker_color='#3949AB',
-                text=[f"{x:,.0f}" for x in df_brand['Forecast_Qty']], textposition='none'
-            ))
-            
-            fig_brand.add_trace(go.Bar(
-                x=df_brand['Brand'], y=df_brand['PO_Qty'],
-                name='Execution (PO)', marker_color='#FFB74D',
-                text=[f"{x:,.0f}" for x in df_brand['PO_Qty']], textposition='none'
-            ))
-            
-            fig_brand.add_trace(go.Bar(
-                x=df_brand['Brand'], y=df_brand['Sales_Qty'],
-                name='Result (Sales)', marker_color='#4DB6AC',
-                text=[f"{x:,.0f}" for x in df_brand['Sales_Qty']], textposition='none'
-            ))
-            
-            fig_brand.update_layout(
-                height=450,
-                xaxis_title="Brand",
-                yaxis_title="Quantity (Units)",
-                barmode='group',
-                hovermode="x unified",
-                legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
-                plot_bgcolor='white',
-                margin=dict(t=50, b=20, l=20, r=20)
+            # Hitung Persentase Pencapaian untuk tabel & warna
+            df_brand['Achievement (%)'] = np.where(
+                df_brand['Forecast_Qty'] > 0, 
+                (df_brand['Sales_Qty'] / df_brand['Forecast_Qty'] * 100), 
+                0
             )
-            st.plotly_chart(fig_brand, use_container_width=True)
 
-            # Tabel Detail per Brand (di dalam Expander agar rapi)
-            with st.expander("📋 Lihat Detail Angka & Pencapaian per Brand"):
-                df_brand_disp = df_brand.copy()
-                # Hitung Persentase Pencapaian
-                df_brand_disp['Achievement (%)'] = np.where(
-                    df_brand_disp['Forecast_Qty'] > 0, 
-                    (df_brand_disp['Sales_Qty'] / df_brand_disp['Forecast_Qty'] * 100), 
-                    0
+            # Buat 2 Tab: Chart View & Table View agar rapi
+            tab_brand_chart, tab_brand_table = st.tabs(["📊 Bullet Chart View", "📋 Progress Matrix View"])
+
+            with tab_brand_chart:
+                # Urutkan Ascending karena Plotly horizontal bar menggambar dari bawah ke atas
+                df_brand_chart = df_brand.sort_values('Forecast_Qty', ascending=True)
+
+                # Bullet Chart Style (Bar + Marker)
+                fig_brand = go.Figure()
+                
+                # 1. Bar utama untuk Sales (Result)
+                fig_brand.add_trace(go.Bar(
+                    y=df_brand_chart['Brand'], 
+                    x=df_brand_chart['Sales_Qty'],
+                    name='Result (Sales)', 
+                    orientation='h',
+                    marker_color='#4DB6AC', # Soft Teal
+                    opacity=0.85,
+                    hovertemplate="<b>%{y}</b><br>Sales: %{x:,.0f} units<extra></extra>"
+                ))
+                
+                # 2. Garis Target untuk Rofo (Plan)
+                fig_brand.add_trace(go.Scatter(
+                    y=df_brand_chart['Brand'], 
+                    x=df_brand_chart['Forecast_Qty'],
+                    name='Plan (Rofo Target)', 
+                    mode='markers',
+                    marker=dict(symbol='line-ns-open', size=20, color='#3949AB', line=dict(width=4, color='#3949AB')),
+                    hovertemplate="<b>%{y}</b><br>Target Rofo: %{x:,.0f} units<extra></extra>"
+                ))
+                
+                # 3. Titik (Dot) untuk PO (Execution)
+                fig_brand.add_trace(go.Scatter(
+                    y=df_brand_chart['Brand'], 
+                    x=df_brand_chart['PO_Qty'],
+                    name='Execution (PO)', 
+                    mode='markers',
+                    marker=dict(symbol='circle', size=10, color='#FFB74D', line=dict(width=1, color='white')),
+                    hovertemplate="<b>%{y}</b><br>PO: %{x:,.0f} units<extra></extra>"
+                ))
+                
+                fig_brand.update_layout(
+                    height=500,
+                    barmode='overlay', # Agar marker menimpa bar
+                    xaxis_title="Quantity (Units)",
+                    yaxis_title="",
+                    hovermode="closest",
+                    legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+                    plot_bgcolor='white',
+                    margin=dict(t=30, b=20, l=20, r=20)
                 )
+                fig_brand.update_xaxes(showgrid=True, gridcolor='rgba(0,0,0,0.05)')
                 
-                # Format angka untuk display
-                for c in ['Forecast_Qty', 'PO_Qty', 'Sales_Qty']:
-                    df_brand_disp[c] = df_brand_disp[c].apply(lambda x: f"{x:,.0f}")
-                df_brand_disp['Achievement (%)'] = df_brand_disp['Achievement (%)'].apply(lambda x: f"{x:.1f}%")
+                st.plotly_chart(fig_brand, use_container_width=True)
+                st.caption("💡 **Cara baca:** Batang hijau adalah Sales. Jika batang menyentuh/melewati garis vertikal biru (Rofo), artinya capai target. Titik oranye adalah PO yang diturunkan.")
+
+            with tab_brand_table:
+                # Urutkan Descending untuk tabel (Top Brand di atas)
+                df_brand_table = df_brand.sort_values('Forecast_Qty', ascending=False)
                 
+                # Gunakan st.dataframe dengan column_config untuk visualisasi in-line
                 st.dataframe(
-                    df_brand_disp.rename(columns={'Forecast_Qty':'Plan (Rofo)', 'PO_Qty':'Execution (PO)', 'Sales_Qty':'Result (Sales)'}), 
-                    use_container_width=True, 
-                    hide_index=True
+                    df_brand_table,
+                    column_order=("Brand", "Forecast_Qty", "PO_Qty", "Sales_Qty", "Achievement (%)"),
+                    column_config={
+                        "Brand": st.column_config.TextColumn("Brand Name", width="medium"),
+                        "Forecast_Qty": st.column_config.NumberColumn("Plan (Rofo)", format="%d"),
+                        "PO_Qty": st.column_config.NumberColumn("Exec (PO)", format="%d"),
+                        "Sales_Qty": st.column_config.NumberColumn("Result (Sales)", format="%d"),
+                        "Achievement (%)": st.column_config.ProgressColumn(
+                            "Achievement %",
+                            help="Sales vs Forecast Percentage",
+                            format="%.1f%%",
+                            min_value=0,
+                            max_value=120, # Cap max visual progress di 120%
+                        ),
+                    },
+                    use_container_width=True,
+                    hide_index=True,
+                    height=450
                 )
 
             # ==============================================================================
