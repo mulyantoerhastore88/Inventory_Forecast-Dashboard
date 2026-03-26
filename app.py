@@ -3106,12 +3106,11 @@ Kurang signifikan. Evaluasi portofolio SKU.</p>
 """, unsafe_allow_html=True)
 
         # ==============================================================================
-        # 4. BRAND PERFORMANCE COMBO CHART (BAR + LINE) - NEW!
+        # 4. BRAND PERFORMANCE COMBO CHART (BAR + LINE) - DYNAMIC COLORS
         # ==============================================================================
         st.divider()
         st.subheader("📊 Brand Detail: Volume vs Accuracy")
-        st.caption("Mengurutkan Brand berdasarkan Volume Forecast (Bar) dengan Garis Akurasi (Line)")
-
+        
         # Sort by Volume
         chart_df = active_df.sort_values('Forecast_Qty', ascending=False)
 
@@ -3122,24 +3121,32 @@ Kurang signifikan. Evaluasi portofolio SKU.</p>
             x=chart_df['Brand'],
             y=chart_df['Forecast_Qty'],
             name='Forecast Volume',
-            marker_color='rgba(99, 102, 241, 0.6)', # Soft Indigo
+            marker_color='rgba(99, 102, 241, 0.2)', # Indigo Transparan elegan
+            marker_line_color='rgba(99, 102, 241, 0.8)',
+            marker_line_width=1.5,
             yaxis='y1'
         ))
+
+        # Dynamic Marker Colors untuk Line Chart
+        line_colors = ['#10B981' if acc >= 80 else '#F59E0B' if acc >= 70 else '#EF4444' for acc in chart_df['Accuracy']]
 
         # Line: Accuracy
         fig_combo.add_trace(go.Scatter(
             x=chart_df['Brand'],
             y=chart_df['Accuracy'],
             name='Accuracy %',
-            mode='lines+markers',
-            line=dict(color='#F59E0B', width=3), # Amber
-            marker=dict(size=8, color='#F59E0B'),
+            mode='lines+markers+text',
+            text=[f"{acc:.1f}%" for acc in chart_df['Accuracy']],
+            textposition="top center",
+            textfont=dict(color='#1F2937', size=10, weight='bold'),
+            line=dict(color='#4B5563', width=2), # Garis abu-abu gelap
+            marker=dict(size=12, color=line_colors, line=dict(width=2, color='white')), # Titik warna-warni
             yaxis='y2'
         ))
 
         fig_combo.update_layout(
             height=450,
-            xaxis_title="Brand",
+            xaxis_title="Brand (Sorted by Volume)",
             yaxis=dict(
                 title="Forecast Volume",
                 showgrid=False
@@ -3148,14 +3155,18 @@ Kurang signifikan. Evaluasi portofolio SKU.</p>
                 title="Accuracy (%)",
                 overlaying='y',
                 side='right',
-                range=[0, 110],
+                range=[0, 120], # Ruang ekstra untuk label teks
                 showgrid=True,
                 gridcolor='rgba(0,0,0,0.05)'
             ),
             hovermode="x unified",
-            legend=dict(orientation="h", y=1.1),
-            plot_bgcolor='white'
+            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+            plot_bgcolor='white',
+            margin=dict(t=40, b=0)
         )
+        
+        # Tambah garis target akurasi
+        fig_combo.add_hline(y=80, line_dash="dot", line_color="#EF4444", yref="y2", annotation_text="Target 80%")
 
         st.plotly_chart(fig_combo, use_container_width=True)
 
@@ -3280,14 +3291,20 @@ with tab3:
         df_batch['Stock_Qty'] = pd.to_numeric(df_batch['Stock_Qty'], errors='coerce').fillna(0)
         df_batch = df_batch[df_batch['Stock_Qty'] > 0] # Filter stok > 0
 
-        # 1.2. MERGE PRODUCT INFO
+        # 1.2. MERGE PRODUCT INFO (THE FIX IS HERE)
+        # Hapus dulu kolom info produk yang mungkin menempel di df_stock (biar tidak double _x _y)
         cols_to_drop = ['Product_Name', 'Brand', 'Status', 'Floor_Price', 'SKU_Tier', 'Net_Order_Price']
         df_batch = df_batch.drop(columns=[c for c in cols_to_drop if c in df_batch.columns], errors='ignore')
 
+        # Merge fresh dari Product Master
         if not df_product.empty:
+            # Pastikan kolom-kolom ini ada di df_product
             master_cols = ['SKU_ID'] + [c for c in cols_to_drop if c in df_product.columns]
+            
+            # Merge
             df_batch = pd.merge(df_batch, df_product[master_cols], on='SKU_ID', how='left')
             
+            # Fill missing text
             for txt_col in ['Status', 'Product_Name', 'Brand']:
                 if txt_col in df_batch.columns:
                     df_batch[txt_col] = df_batch[txt_col].fillna('Unknown')
@@ -3320,12 +3337,10 @@ with tab3:
 
         df_batch['Expiry_Category'] = df_batch.apply(get_expiry_desc, axis=1)
 
-        # 🔥 FIX UTAMA: Pindahkan order_list ke level atas agar selalu terbaca oleh Pivot Matrix & Chart
-        order_list = ['❌ EXPIRED', '🚨 Critical (<30 Days)', '⚠️ NED (1-3 Months)', '📅 NED (3-6 Months)', '✅ Safe (6-12 Months)', '🌟 Fresh (>1 Year)', 'Not Defined']
-
         # 1.5. COVERAGE LOGIC
         df_stock_agg = df_batch.groupby('SKU_ID')['Stock_Qty'].sum().reset_index()
         
+        # Get Sales Data
         df_avg_sales = pd.DataFrame()
         if not df_sales.empty:
             months = sorted(df_sales['Month'].unique())
@@ -3343,14 +3358,16 @@ with tab3:
             999
         )
         
-        avg_cover_months = df_cover[df_cover['Avg_Sales'] > 0]['Cover_Months'].mean()
-        if pd.isna(avg_cover_months): avg_cover_months = 0
+        total_global_stock = df_cover['Stock_Qty'].sum()
+        total_global_avg_sales = df_cover['Avg_Sales'].sum()
+        
+        global_cover_months = (total_global_stock / total_global_avg_sales) if total_global_avg_sales > 0 else 0
         
         current_occupancy = df_batch['Stock_Qty'].sum()
         occupancy_pct = (current_occupancy / WH_CAPACITY * 100)
 
         # ==============================================================================
-        # 2. EXECUTIVE KPI CARDS (PASTEL & SMART VALUE) - UNMASKED (INTERNAL)
+        # 2. EXECUTIVE KPI CARDS (PASTEL & SMART VALUE)
         # ==============================================================================
         total_val = df_batch['Total_Value'].sum()
         total_sku = df_batch['SKU_ID'].nunique()
@@ -3359,15 +3376,15 @@ with tab3:
         risk_val = df_batch[risk_mask]['Total_Value'].sum()
         risk_pct = (risk_val / total_val * 100) if total_val > 0 else 0
 
-        # Helper: Format Uang Pintar Internal (TIDAK ADA SENSOR BINTANG)
+        # Helper: Format Uang Pintar
         def format_currency_smart(value):
-            if pd.isna(value): return "Rp 0"
-            if value >= 1_000_000_000: return f"Rp {value/1e9:,.2f} M"
+            if value >= 1_000_000_000: return f"Rp {value/1e9:,.1f} M"
             elif value >= 1_000_000: return f"Rp {value/1e6:,.1f} Jt"
             else: return f"Rp {value:,.0f}"
 
-        val_display = format_currency_smart(total_val)
-        risk_display = format_currency_smart(risk_val)
+        # Gunakan Master Function dari Sidebar
+        val_display = format_rupiah(total_val)
+        risk_display = format_rupiah(risk_val)
 
         # CSS Styles
         st.markdown("""
@@ -3396,21 +3413,62 @@ with tab3:
         c1, c2, c3, c4 = st.columns(4)
         
         with c1:
+            # Soft Indigo
             st.markdown(render_inv_card("Total Asset Value", val_display, f"{total_sku:,} Items", 
                 "linear-gradient(135deg, #7986cb 0%, #5c6bc0 100%)"), unsafe_allow_html=True)
         with c2:
+            # Soft Teal
             st.markdown(render_inv_card("Total Quantity", f"{current_occupancy:,.0f}", f"{occupancy_pct:.1f}% Capacity", 
                 "linear-gradient(135deg, #4db6ac 0%, #26a69a 100%)"), unsafe_allow_html=True)
         with c3:
-            st.markdown(render_inv_card("Global Stock Cover", f"{avg_cover_months:.1f} Mo", "Avg across active SKUs", 
+            # Soft Orange
+            st.markdown(render_inv_card("Global Stock Cover", f"{global_cover_months:.1f} Mo", "Total Stock / Total Sales", 
                 "linear-gradient(135deg, #ffb74d 0%, #ffa726 100%)"), unsafe_allow_html=True)
         with c4:
+            # Soft Red or Green depending on risk
             risk_bg = "linear-gradient(135deg, #ef5350 0%, #e53935 100%)" if risk_pct > 5 else "linear-gradient(135deg, #66bb6a 0%, #43a047 100%)"
             st.markdown(render_inv_card("Expiry Risk Value", risk_display, f"{risk_pct:.1f}% of Total", 
                 risk_bg), unsafe_allow_html=True)
 
+        # --- BARIS KEDUA: ADVANCED INVENTORY METRICS ---
+        st.write("") # Spacer kecil agar tidak terlalu menempel
+        
+        # Ekstrak list SKU yang HANYA berstatus 'SKU Regular' (TANPA FILTER ACTIVE)
+        regular_skus_only = df_batch[
+            df_batch['Stock_Category'].str.contains('Regular', case=False, na=False)
+        ]['SKU_ID'].unique()
+
+        # Filter df_cover khusus untuk perhitungan KPI
+        df_cover_filtered = df_cover[df_cover['SKU_ID'].isin(regular_skus_only)]
+        
+        # Kalkulasi Metrik Baru
+        inv_turnover = (12 / global_cover_months) if global_cover_months > 0 else 0
+        
+        # 🔥 UBAH ANGKA 0.3 DI SINI MENJADI 0.1
+        stockout_skus = len(df_cover_filtered[df_cover_filtered['Cover_Months'] < 0.2]) 
+        
+        total_skus_cover = len(df_cover_filtered)
+        stockout_rate = (stockout_skus / total_skus_cover * 100) if total_skus_cover > 0 else 0
+        replenish_skus = len(df_cover_filtered[df_cover_filtered['Cover_Months'] < 0.8])
+
+        c5, c6, c7 = st.columns(3)
+        
+        with c5:
+            # Soft Purple untuk Turnover
+            st.markdown(render_inv_card("Inventory Turnover", f"{inv_turnover:.1f}x", "Annualized Ratio", 
+                "linear-gradient(135deg, #ab47bc 0%, #8e24aa 100%)"), unsafe_allow_html=True)
+        with c6:
+            # Merah Tua jika Stockout Rate > 5%, Hijau jika aman
+            so_bg = "linear-gradient(135deg, #e53935 0%, #c62828 100%)" if stockout_rate > 5 else "linear-gradient(135deg, #43a047 0%, #2e7d32 100%)"
+            st.markdown(render_inv_card("Stock Out Rate", f"{stockout_rate:.1f}%", f"{stockout_skus} SKUs (< 0.2 Mo)", 
+                so_bg), unsafe_allow_html=True)
+        with c7:
+            # Amber/Orange Tua untuk Need Replenishment
+            st.markdown(render_inv_card("Need Replenishment", f"{replenish_skus} SKUs", "SKUs (< 0.8 Mo Cover)", 
+                "linear-gradient(135deg, #fb8c00 0%, #ef6c00 100%)"), unsafe_allow_html=True)
+
         # ==============================================================================
-        # 3. STOCK COVER & OCCUPANCY DASHBOARD
+        # 3. STOCK COVER & OCCUPANCY DASHBOARD (FIXED RESPONSIVE GAUGE)
         # ==============================================================================
         st.write("")
         st.subheader("⚡ Inventory Health & Warehouse Utilization")
@@ -3418,15 +3476,16 @@ with tab3:
         col_speed1, col_speed2 = st.columns(2)
         
         with col_speed1:
+            # Gauge: Global Coverage
             fig_cover = go.Figure(go.Indicator(
                 mode="gauge+number",
-                value=avg_cover_months,
+                value=global_cover_months, # <--- UBAH DI SINI
                 domain={'x': [0, 1], 'y': [0, 1]},
-                title={'text': "Avg Inventory Coverage (Months)", 'font': {'size': 15, 'color': '#4B5563'}},
-                number={'font': {'size': 36, 'color': '#1F2937'}}, 
+                title={'text': "Global Inventory Coverage (Months)", 'font': {'size': 15, 'color': '#4B5563'}}, # <--- UBAH JUDULNYA
+                number={'font': {'size': 36, 'color': '#1F2937'}, 'valueformat': '.1f'}, # <--- Format 1 desimal
                 gauge={
                     'axis': {'range': [0, 6], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                    'bar': {'color': "#7986cb", 'thickness': 0.3},
+                    'bar': {'color': "#7986cb", 'thickness': 0.3}, # Bar dipertipis sedikit
                     'steps': [
                         {'range': [0, 0.8], 'color': "#ef5350"},
                         {'range': [0.8, 2.0], 'color': "#4db6ac"},
@@ -3435,18 +3494,23 @@ with tab3:
                     'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 2.0}
                 }
             ))
-            fig_cover.update_layout(height=320, margin=dict(t=50, b=20, l=40, r=40), autosize=True)
+            fig_cover.update_layout(
+                height=280, # Tinggi diturunkan sedikit agar presisi
+                margin=dict(t=40, b=10, l=0, r=0), # KUNCI FIX: Margin Kiri (l) dan Kanan (r) dibuat 0
+                autosize=True
+            )
             st.plotly_chart(fig_cover, use_container_width=True)
             st.caption("Target: **0.8 - 2.0 Bulan**")
 
         with col_speed2:
+            # Gauge: WH Occupancy
             occ_color = "#4db6ac" if occupancy_pct < 80 else "#ef5350"
             fig_occ = go.Figure(go.Indicator(
                 mode="gauge+number+delta",
                 value=occupancy_pct,
                 domain={'x': [0, 1], 'y': [0, 1]},
                 title={'text': "Warehouse Occupancy (%)", 'font': {'size': 15, 'color': '#4B5563'}},
-                number={'font': {'size': 36, 'color': '#1F2937'}}, 
+                number={'font': {'size': 36, 'color': '#1F2937'}}, # Kunci ukuran font
                 delta={'reference': 80, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}, 'font': {'size': 20}},
                 gauge={
                     'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
@@ -3459,7 +3523,11 @@ with tab3:
                     'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': 85}
                 }
             ))
-            fig_occ.update_layout(height=320, margin=dict(t=50, b=20, l=40, r=40), autosize=True)
+            fig_occ.update_layout(
+                height=280, # Tinggi diturunkan sedikit agar presisi
+                margin=dict(t=40, b=10, l=0, r=0), # KUNCI FIX: Margin Kiri (l) dan Kanan (r) dibuat 0
+                autosize=True
+            )
             st.plotly_chart(fig_occ, use_container_width=True)
             st.caption(f"Capacity Used: **{current_occupancy:,.0f}** / **{WH_CAPACITY:,.0f}** pcs")
 
@@ -3470,6 +3538,7 @@ with tab3:
         st.subheader("🚨 Actionable Inventory Alerts (Active & Regular SKU Only)")
         st.caption("Daftar *SKU Regular* berstatus **Active** yang membutuhkan tindakan operasional segera berdasarkan sales 3 bulan terakhir.")
         
+        # Ekstrak list SKU yang HANYA berstatus 'SKU Regular' DAN 'Active'
         active_regular_skus = df_batch[
             (df_batch['Stock_Category'].str.contains('Regular', case=False, na=False)) &
             (df_batch['Status'].str.upper() == 'ACTIVE')
@@ -3479,8 +3548,9 @@ with tab3:
             df_low = inventory_metrics['low_stock'].copy()
             df_high = inventory_metrics['high_stock'].copy()
             
-            df_low = df_low[df_low['SKU_ID'].isin(active_regular_skus)]
-            df_high = df_high[df_high['SKU_ID'].isin(active_regular_skus)]
+            # Terapkan Filter Lapis Ganda & SORTING (Urutkan dari yang terparah)
+            df_low = df_low[df_low['SKU_ID'].isin(active_regular_skus)].sort_values('Cover_Months', ascending=True) # Stock paling kritis (0.0) di atas
+            df_high = df_high[df_high['SKU_ID'].isin(active_regular_skus)].sort_values('Cover_Months', ascending=False) # Dead stock terlama (999) di atas
             
             cols_to_show = ['SKU_ID', 'Product_Name', 'Stock_Qty', 'Avg_Monthly_Sales_3M', 'Cover_Months']
             
@@ -3515,12 +3585,15 @@ with tab3:
         st.subheader("🧬 Strategic Inventory Classification & Risk Exposure (SKU Regular)")
         st.caption("Memetakan prioritas *SKU Regular* berdasarkan nilai aset (ABC Analysis) dan risiko kedaluwarsa secara finansial.")
         
+        # Buat dataframe khusus SKU Regular untuk perhitungan ABC & Aging
         df_batch_regular = df_batch[df_batch['Stock_Category'].str.contains('Regular', case=False, na=False)].copy()
         
         col_abc, col_age = st.columns([1, 1.2])
         
         with col_abc:
+            # --- KONSEP ABC ANALYSIS ---
             st.markdown("**📊 ABC Inventory Classification (By Value)**")
+            
             if not df_batch_regular.empty:
                 df_abc = df_batch_regular.groupby(['SKU_ID', 'Product_Name'])['Total_Value'].sum().reset_index()
                 df_abc = df_abc.sort_values('Total_Value', ascending=False)
@@ -3553,15 +3626,19 @@ with tab3:
                     hovertemplate="<b>%{label}</b><br>Value: Rp %{value:,.0f}<br>Total SKUs: %{customdata[0]}<extra></extra>"
                 )
                 fig_abc.update_layout(height=380, showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
+                
                 fig_abc.add_annotation(text=f"<b>{len(df_abc)}</b><br>Regular SKUs", x=0.5, y=0.5, font_size=18, showarrow=False)
                 st.plotly_chart(fig_abc, use_container_width=True)
             else:
                 st.info("Tidak ada data SKU Regular.")
 
         with col_age:
+            # --- FINANCIAL AGING PROFILE ---
             st.markdown("**⏳ Financial Exposure by Expiry Status**")
+            
             if not df_batch_regular.empty:
                 age_dist = df_batch_regular.groupby('Expiry_Category').agg({'Total_Value': 'sum', 'Stock_Qty': 'sum'}).reset_index()
+                order_list = ['❌ EXPIRED', '🚨 Critical (<30 Days)', '⚠️ NED (1-3 Months)', '📅 NED (3-6 Months)', '✅ Safe (6-12 Months)', '🌟 Fresh (>1 Year)', 'Not Defined']
                 age_dist['Expiry_Category'] = pd.Categorical(age_dist['Expiry_Category'], categories=order_list, ordered=True)
                 age_dist = age_dist.sort_values('Expiry_Category')
                 
@@ -3599,6 +3676,7 @@ with tab3:
         pivot['TOTAL (Qty)'] = pivot.sum(axis=1)
         pivot = pivot.sort_values('TOTAL (Qty)', ascending=False)
         
+        # Styling dengan warna background yang lebih halus (Soft Reds untuk kolom bahaya)
         risk_cols = [c for c in existing_cols if 'EXPIRED' in c or 'Critical' in c or 'NED' in c]
         safe_cols = [c for c in existing_cols if 'Safe' in c or 'Fresh' in c]
         
@@ -3626,6 +3704,7 @@ with tab3:
             if search_sku: 
                 df_drill = df_drill[df_drill['SKU_ID'].str.contains(search_sku, case=False) | df_drill['Product_Name'].str.contains(search_sku, case=False)]
             
+            # Display
             cols = ['SKU_ID', 'Product_Name', 'Status', 'Stock_Category', 'Expiry_Category', 'Stock_Qty', 'Floor_Price', 'Total_Value']
             if 'Expiry_Date' in df_batch.columns: cols.insert(5, 'Expiry_Date')
             
