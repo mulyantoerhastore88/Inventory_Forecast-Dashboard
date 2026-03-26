@@ -3916,61 +3916,76 @@ with tab4:
 # --- TAB 5: SALES & FORECAST ANALYSIS (EASY TO UNDERSTAND VERSION) ---
 with tab5:
     st.subheader("📈 Realization & Gap Analysis")
-    st.caption("Membandingkan Perencanaan (Rofo), Eksekusi (PO), dan Hasil Akhir (Sales)")
+    st.caption("Membandingkan Perencanaan (Rofo), Eksekusi (PO), dan Hasil Akhir (Sales) secara dinamis.")
 
     if not df_sales.empty and not df_forecast.empty:
         # ==============================================================================
-        # 1. DATA PREPARATION & FILTER TAHUN
+        # 1. DATA PREPARATION & DYNAMIC FILTERS (YEAR & BRAND)
         # ==============================================================================
         
-        # Get all unique months from the datasets
+        # Get all unique months & brands from the datasets
         all_months = sorted(list(set(df_sales['Month'].unique()) | set(df_forecast['Month'].unique()) | set(df_po['Month'].unique())))
-        
-        # Ekstrak Tahun unik dari semua bulan
         available_years = sorted(list(set([m.year for m in all_months if pd.notnull(m)])))
         
-        # UI Filter Multi-Select untuk Tahun
-        selected_years = st.multiselect(
-            "📅 Filter Tahun:",
-            options=available_years,
-            default=available_years, # Default: tampilkan semua tahun
-            help="Pilih satu atau beberapa tahun untuk menganalisis performa pada periode tertentu."
-        )
+        # Mengambil daftar brand yang tersedia (hapus nilai kosong)
+        all_brands = set()
+        if 'Brand' in df_forecast.columns: all_brands.update(df_forecast['Brand'].dropna().unique())
+        if 'Brand' in df_sales.columns: all_brands.update(df_sales['Brand'].dropna().unique())
+        available_brands = sorted(list(all_brands))
+
+        # UI Filter Multi-Select untuk Tahun & Brand (Bersebelahan)
+        col_fil1, col_fil2 = st.columns(2)
+        with col_fil1:
+            selected_years = st.multiselect(
+                "📅 Filter Tahun:",
+                options=available_years,
+                default=available_years,
+                help="Pilih tahun untuk menganalisis performa pada periode tertentu."
+            )
+        with col_fil2:
+            selected_brands = st.multiselect(
+                "🏷️ Filter Brand:",
+                options=available_brands,
+                default=available_brands, # Default: tampilkan semua brand
+                help="Pilih spesifik brand untuk membedah tren performanya."
+            )
         
         # Filter list bulan berdasarkan tahun yang dipilih
         filtered_months = [m for m in all_months if m.year in selected_years]
 
-        # Cegah error jika user menghapus semua pilihan tahun
-        if not filtered_months:
-            st.warning("⚠️ Silakan pilih minimal 1 tahun untuk menampilkan data.")
+        # Cegah error jika user menghapus semua pilihan
+        if not filtered_months or not selected_brands:
+            st.warning("⚠️ Silakan pilih minimal 1 Tahun dan 1 Brand untuk menampilkan data.")
         else:
-            # --- Buat Dataframe Terfilter Global untuk Tab 5 ---
-            df_f_filtered = df_forecast[df_forecast['Month'].isin(filtered_months)]
-            df_p_filtered = df_po[df_po['Month'].isin(filtered_months)]
-            df_s_filtered = df_sales[df_sales['Month'].isin(filtered_months)]
+            # --- Buat Dataframe Terfilter Global (Bulan & Brand) untuk Tab 5 ---
+            df_f_filtered = df_forecast[(df_forecast['Month'].isin(filtered_months)) & (df_forecast['Brand'].isin(selected_brands))]
+            df_p_filtered = df_po[(df_po['Month'].isin(filtered_months)) & (df_po['Brand'].isin(selected_brands))]
+            df_s_filtered = df_sales[(df_sales['Month'].isin(filtered_months)) & (df_sales['Brand'].isin(selected_brands))]
             
             monthly_data = []
             for month in filtered_months:
-                # Sales, Forecast, PO per bulan
+                # Sales, Forecast, PO per bulan (sudah terfilter by brand)
                 s_qty = df_s_filtered[df_s_filtered['Month'] == month]['Sales_Qty'].sum()
                 f_qty = df_f_filtered[df_f_filtered['Month'] == month]['Forecast_Qty'].sum()
                 p_qty = df_p_filtered[df_p_filtered['Month'] == month]['PO_Qty'].sum()
                 
-                monthly_data.append({
-                    'Month': month,
-                    'Month_Txt': month.strftime('%b-%y'),
-                    'Rofo': f_qty,
-                    'Sales': s_qty,
-                    'PO': p_qty,
-                    'Gap_Sales_Rofo': s_qty - f_qty
-                })
+                # Hanya masukkan ke grafik jika bulan tersebut ada datanya (tidak nol semua)
+                if s_qty > 0 or f_qty > 0 or p_qty > 0:
+                    monthly_data.append({
+                        'Month': month,
+                        'Month_Txt': month.strftime('%b-%y'),
+                        'Rofo': f_qty,
+                        'Sales': s_qty,
+                        'PO': p_qty,
+                        'Gap_Sales_Rofo': s_qty - f_qty
+                    })
                 
             df_trend = pd.DataFrame(monthly_data)
             
-            # Totals for KPI
-            total_rofo = df_trend['Rofo'].sum()
-            total_sales = df_trend['Sales'].sum()
-            total_po = df_trend['PO'].sum()
+            # Totals for KPI (Menggunakan data terfilter)
+            total_rofo = df_trend['Rofo'].sum() if not df_trend.empty else 0
+            total_sales = df_trend['Sales'].sum() if not df_trend.empty else 0
+            total_po = df_trend['PO'].sum() if not df_trend.empty else 0
             
             # ==============================================================================
             # 2. KPI CARDS (PASTEL GRADIENT)
