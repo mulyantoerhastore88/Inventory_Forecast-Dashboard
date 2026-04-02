@@ -2635,8 +2635,7 @@ if monthly_performance:
 st.divider()
 
 # --- MAIN TABS ---
-# Tambahkan "🌟 Executive Summary" di urutan pertama
-tab_summary, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "📈 Monthly Performance Details",
     "🏷️ Forecast Performance by Brand & Tier Analysis",
     "📦 Inventory Analysis",
@@ -2646,7 +2645,7 @@ tab_summary, tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.ta
     "🛒 Ecommerce Forecast",  
     "💰 Profitability Analysis",
     "🤝 Reseller Forecast",
-    "🚚 Fulfillment Cost Analysis"
+    "🚚 Fulfillment Cost Analysis" 
 ])
 
         
