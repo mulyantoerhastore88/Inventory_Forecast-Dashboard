@@ -3864,8 +3864,8 @@ with tab4:
             hist_data = []
             if not df_sales.empty:
                 sales_months = sorted(df_sales['Month'].unique())
-                # Last 12 months
-                target_months = sales_months[-12:] if len(sales_months) >= 12 else sales_months
+                # Tampilkan seluruh horizon historis data yang tersedia
+                target_months = sales_months
                 
                 for m in target_months:
                     s_qty = df_sales[(df_sales['Month'] == m) & (df_sales['SKU_ID'] == selected_sku)]['Sales_Qty'].sum()
