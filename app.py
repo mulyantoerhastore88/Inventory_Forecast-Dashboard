@@ -2872,7 +2872,7 @@ with tab1:
             .background_gradient(subset=['Under'], cmap='Reds', vmin=0, vmax=summary_df['Under'].max()*1.5)\
             .background_gradient(subset=['Accurate'], cmap='Greens', vmin=0, vmax=summary_df['Accurate'].max())\
             .background_gradient(subset=['Over'], cmap='Oranges', vmin=0, vmax=summary_df['Over'].max()*1.5)\
-            .applymap(highlight_accuracy, subset=['Accuracy'])\
+            .map(highlight_accuracy, subset=['Accuracy'])\
             .format({
                 'Accuracy': '{:.1f}%',
                 'MAPE': '{:.1f}%',
