@@ -3739,20 +3739,22 @@ with tab4:
         # Prepare list for dropdown
         available_skus = []
         if not last_month_data.empty:
-            # Sort by highest forecast volume (Pareto) to show important items first
-            sorted_skus = last_month_data.sort_values('Forecast_Qty', ascending=False)
-            
-            for _, row in sorted_skus.head(200).iterrows(): # Limit 200 for performance
-                sku_label = f"{row['SKU_ID']} - {row.get('Product_Name', 'N/A')}"
-                available_skus.append(sku_label)
+                # Sort by highest forecast volume (Pareto) to show important items first
+                sorted_skus = last_month_data.sort_values('Forecast_Qty', ascending=False)
+                
+                # 🔥 HAPUS .head(200) AGAR SEMUA SKU MASUK KE LIST
+                for _, row in sorted_skus.iterrows(): 
+                    sku_label = f"{row['SKU_ID']} - {row.get('Product_Name', 'N/A')}"
+                    available_skus.append(sku_label)
 
-        # UI Selectbox
-        col_sel1, col_sel2 = st.columns([2, 1])
-        with col_sel1:
-            selected_sku_display = st.selectbox(
-                "📋 Select SKU to Analyze (Top 200 by Volume)", 
-                options=available_skus
-            )
+            # UI Selectbox
+            col_sel1, col_sel2 = st.columns([2, 1])
+            with col_sel1:
+                # 🔥 UBAH LABEL TEXT-NYA
+                selected_sku_display = st.selectbox(
+                    "📋 Select SKU to Analyze (All SKUs)", 
+                    options=available_skus
+                )
         
         if selected_sku_display:
             selected_sku = selected_sku_display.split(" - ")[0]
