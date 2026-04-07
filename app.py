@@ -5921,7 +5921,7 @@ with tab10:
 
         with col_vol:
             st.subheader("📦 Scalability: GMV vs Cost")
-            st.caption("Apakah biaya ikut membengkak saat GMV naik?")
+            st.caption("Apakah biaya ikut naik saat GMV naik?")
             
             fig_eff = go.Figure()
             
