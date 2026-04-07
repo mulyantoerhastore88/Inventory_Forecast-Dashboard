@@ -5781,205 +5781,151 @@ with tab9:
 # --- TAB 10: FULFILLMENT COST ANALYSIS (UNIT ECONOMICS) ---
 with tab10:
     st.subheader("🚚 Fulfillment Cost Intelligence")
-    st.caption("Operational Efficiency: Cost per Order (CPO), Contribution, and Unit Economics Analysis")
+    st.caption("Executive Dashboard: Operational Efficiency, Unit Economics (CPO vs BSA), and Cost Ratio Trends")
 
     # ==============================================================================
-    # 1. DATA PREPARATION
+    # 1. DATA PREPARATION (Menyesuaikan dengan Kolom Asli GSheet)
     # ==============================================================================
     df_bs = all_data.get('fulfillment', pd.DataFrame())
 
     if not df_bs.empty:
         # Sort kronologis
         if 'Month_Date' not in df_bs.columns:
-             # Fallback parsing jika kolom date belum ada
              df_bs['Month_Date'] = pd.to_datetime(df_bs['Month'], format='%b-%y', errors='coerce')
         
         df_bs = df_bs.sort_values('Month_Date')
 
-        # CALCULATE METRICS (Termasuk CPO)
-        # Pastikan numeric
-        num_cols = ['Total Order(BS)', 'Total Cost', 'GMV (Fullfil By BS)', 'GMV Total (MP)']
+        # Pastikan kolom sesuai dengan screenshot GSheet
+        num_cols = ['Total Order(BS)', 'GMV (Fullfil By BS)', 'GMV Total (MP)', 'Total Cost', 'BSA', '%Cost']
         for c in num_cols:
             if c in df_bs.columns:
                 df_bs[c] = pd.to_numeric(df_bs[c], errors='coerce').fillna(0)
 
-        # 1. Cost Per Order (CPO)
-        df_bs['CPO'] = df_bs.apply(
-            lambda x: x['Total Cost'] / x['Total Order(BS)'] if x['Total Order(BS)'] > 0 else 0, axis=1
+        # Hitung CPO (Cost Per Order) secara dinamis
+        df_bs['CPO'] = np.where(
+            df_bs['Total Order(BS)'] > 0, 
+            df_bs['Total Cost'] / df_bs['Total Order(BS)'], 
+            0
         )
-
-        # 2. Basket Size (BSA) - Recalculate to be safe
-        df_bs['BSA_Calc'] = df_bs.apply(
-            lambda x: x['GMV (Fullfil By BS)'] / x['Total Order(BS)'] if x['Total Order(BS)'] > 0 else 0, axis=1
-        )
-
-        # 3. Contribution %
-        df_bs['Contrib_Pct'] = df_bs.apply(
-            lambda x: (x['GMV (Fullfil By BS)'] / x['GMV Total (MP)'] * 100) if x['GMV Total (MP)'] > 0 else 0, axis=1
-        )
-
-        # Get Last Month Data
-        last_row = df_bs.iloc[-1]
-        prev_row = df_bs.iloc[-2] if len(df_bs) > 1 else last_row
 
         # ==============================================================================
-        # 2. EFFICIENCY KPI CARDS (PASTEL GRADIENT)
+        # 2. EXECUTIVE KPI CARDS (YEARLY / AGGREGATE VIEW)
         # ==============================================================================
-        
-        # Helper Format
-        def fmt_kpi(val, is_money=False):
-            if is_money:
-                if val >= 1e9: return f"Rp {val/1e9:,.1f} M"
-                elif val >= 1e6: return f"Rp {val/1e6:,.1f} Jt"
-                return f"Rp {val:,.0f}"
-            else:
-                return f"{val:,.0f}"
+        # Hitung Agregat untuk Executive Summary
+        avg_cpo = df_bs['CPO'].mean()
+        avg_bsa = df_bs['BSA'].mean()
+        avg_cost_pct = df_bs['%Cost'].mean()
+        total_fulfillment_cost = df_bs['Total Cost'].sum()
+        total_orders = df_bs['Total Order(BS)'].sum()
 
-        # Calculate Deltas
-        d_cpo = last_row['CPO'] - prev_row['CPO']
-        d_gmv = last_row['GMV (Fullfil By BS)'] - prev_row['GMV (Fullfil By BS)']
-        d_ord = last_row['Total Order(BS)'] - prev_row['Total Order(BS)']
-        d_share = last_row['Contrib_Pct'] - prev_row['Contrib_Pct']
-
-        # CSS (Reused for Consistency)
         st.markdown("""
         <style>
-            .eff-card {
-                border-radius: 12px; padding: 1.2rem; color: white;
-                box-shadow: 0 4px 10px rgba(0,0,0,0.05); transition: transform 0.3s;
-                position: relative; overflow: hidden;
+            .bs-card {
+                background: white;
+                border-radius: 12px;
+                padding: 1.5rem;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+                border-top: 4px solid;
+                text-align: center;
+                transition: transform 0.3s ease;
             }
-            .eff-card:hover { transform: translateY(-3px); }
-            .eff-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; opacity: 0.9; margin-bottom: 5px; }
-            .eff-val { font-size: 1.6rem; font-weight: 800; margin-bottom: 5px; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-            .eff-sub { font-size: 0.85rem; font-weight: 500; opacity: 0.95; display: flex; align-items: center; gap: 5px; }
-            .eff-badge { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; }
+            .bs-card:hover { transform: translateY(-5px); }
+            .bs-title { font-size: 0.85rem; color: #6B7280; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;}
+            .bs-val { font-size: 1.8rem; font-weight: 900; color: #1F2937; margin-bottom: 4px;}
+            .bs-sub { font-size: 0.8rem; color: #9CA3AF; font-weight: 500;}
         </style>
         """, unsafe_allow_html=True)
 
+        def render_bs_card(title, val, sub, color):
+            return f"""
+            <div class="bs-card" style="border-top-color: {color};">
+                <div class="bs-title">{title}</div>
+                <div class="bs-val">{val}</div>
+                <div class="bs-sub">{sub}</div>
+            </div>
+            """
+
         c1, c2, c3, c4 = st.columns(4)
-
         with c1:
-            # Cost Per Order (Primary Efficiency Metric)
-            # Hijau kalau turun, Merah kalau naik (karena Cost)
-            bg_cpo = "linear-gradient(135deg, #10B981 0%, #059669 100%)" if d_cpo <= 0 else "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)"
-            icon_cpo = "▼" if d_cpo <= 0 else "▲"
-            st.markdown(f"""
-            <div class="eff-card" style="background: {bg_cpo};">
-                <div class="eff-title">Cost Per Order (CPO)</div>
-                <div class="eff-val">Rp {last_row['CPO']:,.0f}</div>
-                <div class="eff-sub">
-                    <span class="eff-badge">{icon_cpo} Rp {abs(d_cpo):,.0f}</span> vs Last Mo
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
+            st.markdown(render_bs_card("Avg Cost Per Order (CPO)", f"Rp {avg_cpo:,.0f}", "Biaya rata-rata per transaksi", "#EF4444"), unsafe_allow_html=True)
         with c2:
-            # Total Orders (Volume) - Blue
-            icon_ord = "▲" if d_ord >= 0 else "▼"
-            st.markdown(f"""
-            <div class="eff-card" style="background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);">
-                <div class="eff-title">Total Processed Orders</div>
-                <div class="eff-val">{last_row['Total Order(BS)']:,.0f}</div>
-                <div class="eff-sub">
-                    <span class="eff-badge">{icon_ord} {abs(d_ord):,.0f}</span> Transactions
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
+            st.markdown(render_bs_card("Avg Basket Size (BSA)", f"Rp {avg_bsa:,.0f}", "Nilai belanja rata-rata user", "#10B981"), unsafe_allow_html=True)
         with c3:
-            # Contribution - Indigo
-            icon_share = "▲" if d_share >= 0 else "▼"
-            st.markdown(f"""
-            <div class="eff-card" style="background: linear-gradient(135deg, #6366F1 0%, #4338CA 100%);">
-                <div class="eff-title">BS Contribution %</div>
-                <div class="eff-val">{last_row['Contrib_Pct']:.1f}%</div>
-                <div class="eff-sub">
-                    <span class="eff-badge">{icon_share} {abs(d_share):.1f}%</span> of Total GMV
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
+            st.markdown(render_bs_card("Avg % Cost Ratio", f"{avg_cost_pct:.2f}%", "Target ideal: Serendah mungkin", "#F59E0B"), unsafe_allow_html=True)
         with c4:
-            # Total Cost - Orange/Red
-            # Cost naik wajar kalau order naik, jadi warna netral (Orange)
-            st.markdown(f"""
-            <div class="eff-card" style="background: linear-gradient(135deg, #F97316 0%, #C2410C 100%);">
-                <div class="eff-title">Total Fulfillment Cost</div>
-                <div class="eff-val">{fmt_kpi(last_row['Total Cost'], True)}</div>
-                <div class="eff-sub">Ratio: {last_row['%Cost']:.1f}% of GMV</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(render_bs_card("Total Est. Cost", f"Rp {total_fulfillment_cost/1e6:,.0f} Jt", f"Untuk {total_orders:,.0f} Orders", "#6366F1"), unsafe_allow_html=True)
+
+        st.write("") # Spacer
 
         # ==============================================================================
-        # 3. UNIT ECONOMICS CHART (NEW!)
+        # 3. UNIT ECONOMICS: BSA VS CPO (THE PROFITABILITY SPREAD)
         # ==============================================================================
         st.divider()
-        st.subheader("⚖️ Unit Economics: Basket Size vs Cost per Order")
-        st.caption("Membandingkan rata-rata nilai belanja customer (BSA) dengan biaya per transaksi (CPO). **Gap yang melebar (BSA naik, CPO turun) = Efisiensi Meningkat.**")
+        st.subheader("⚖️ Unit Economics Spread (BSA vs CPO)")
+        st.caption("Menampilkan tren **Basket Size** dibandingkan dengan **Cost Per Order**. Area hijau menunjukkan 'Spread' atau potensi efisiensi profit per order.")
 
         fig_unit = go.Figure()
 
-        # Line: Basket Size (Higher is better)
+        # Fill area between BSA and CPO to show the "Margin Spread" visually
         fig_unit.add_trace(go.Scatter(
-            x=df_bs['Month'], y=df_bs['BSA_Calc'],
+            x=df_bs['Month'], y=df_bs['BSA'],
             name='Basket Size (BSA)',
             mode='lines+markers',
-            line=dict(color='#6366F1', width=3), # Indigo
-            marker=dict(size=8, color='#6366F1'),
-            hovertemplate='BSA: Rp %{y:,.0f}'
+            line=dict(color='#10B981', width=3), # Emerald Green
+            marker=dict(size=8, symbol='circle'),
+            hovertemplate='<b>%{x}</b><br>BSA: Rp %{y:,.0f}<extra></extra>'
         ))
 
-        # Line: Cost Per Order (Lower is better)
         fig_unit.add_trace(go.Scatter(
             x=df_bs['Month'], y=df_bs['CPO'],
             name='Cost Per Order (CPO)',
             mode='lines+markers',
-            line=dict(color='#EF4444', width=3, dash='dot'), # Red Dotted
-            marker=dict(size=8, color='#EF4444', symbol='diamond'),
-            hovertemplate='CPO: Rp %{y:,.0f}',
-            yaxis='y2' # Dual Axis biar skalanya pas
+            line=dict(color='#EF4444', width=3, dash='dot'), # Red
+            marker=dict(size=8, symbol='diamond'),
+            yaxis='y2',
+            hovertemplate='<b>%{x}</b><br>CPO: Rp %{y:,.0f}<extra></extra>'
         ))
 
         fig_unit.update_layout(
             height=450,
-            xaxis_title="Month",
-            yaxis=dict(title="Basket Size (Rp)", showgrid=False),
+            xaxis_title="",
+            yaxis=dict(title="Basket Size (Rp)", showgrid=False, titlefont=dict(color='#10B981'), tickfont=dict(color='#10B981')),
             yaxis2=dict(
-                title="Cost per Order (Rp)", 
+                title="Cost Per Order (Rp)", 
                 overlaying='y', side='right', 
-                showgrid=True, gridcolor='rgba(0,0,0,0.05)'
+                showgrid=True, gridcolor='rgba(0,0,0,0.05)',
+                titlefont=dict(color='#EF4444'), tickfont=dict(color='#EF4444')
             ),
             hovermode="x unified",
-            legend=dict(orientation="h", y=1.1),
-            plot_bgcolor='white'
+            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+            plot_bgcolor='white',
+            margin=dict(t=50, b=20, l=20, r=20)
         )
         st.plotly_chart(fig_unit, use_container_width=True)
 
         # ==============================================================================
-        # 4. EFFICIENCY TREND & SCALE ANALYSIS
+        # 4. SCALABILITY & COST RATIO TREND
         # ==============================================================================
         st.divider()
-        col_scale, col_ratio = st.columns(2)
+        col_vol, col_ratio = st.columns([1.2, 1])
 
-        with col_scale:
-            st.subheader("📦 Volume vs Cost Trend")
-            st.caption("Hubungan antara kenaikan volume order dengan total biaya.")
+        with col_vol:
+            st.subheader("📦 Scalability: GMV vs Cost")
+            st.caption("Apakah biaya ikut membengkak saat GMV naik?")
             
             fig_eff = go.Figure()
             
-            # Bar: Total Orders
+            # Bar: GMV BS
             fig_eff.add_trace(go.Bar(
-                x=df_bs['Month'], y=df_bs['Total Order(BS)'],
-                name='Total Orders',
-                marker_color='#3B82F6', # Blue
-                opacity=0.6
+                x=df_bs['Month'], y=df_bs['GMV (Fullfil By BS)'],
+                name='GMV (Fulfilled by BS)',
+                marker_color='rgba(99, 102, 241, 0.7)', # Indigo
             ))
             
             # Line: Total Cost
             fig_eff.add_trace(go.Scatter(
                 x=df_bs['Month'], y=df_bs['Total Cost'],
-                name='Total Cost (Rp)',
+                name='Total Cost',
                 mode='lines+markers',
                 line=dict(color='#F97316', width=3), # Orange
                 yaxis='y2'
@@ -5987,90 +5933,75 @@ with tab10:
             
             fig_eff.update_layout(
                 height=400,
-                xaxis_title="Month",
-                yaxis=dict(title="Orders (Qty)", showgrid=False),
-                yaxis2=dict(title="Total Cost (Rp)", overlaying='y', side='right', showgrid=True),
+                yaxis=dict(title="GMV (Rp)", showgrid=False),
+                yaxis2=dict(title="Total Cost (Rp)", overlaying='y', side='right', showgrid=True, gridcolor='rgba(0,0,0,0.05)'),
                 legend=dict(orientation="h", y=1.1),
-                plot_bgcolor='white'
+                plot_bgcolor='white',
+                margin=dict(t=30, b=10, l=10, r=10)
             )
             st.plotly_chart(fig_eff, use_container_width=True)
 
         with col_ratio:
             st.subheader("📉 % Cost Ratio Trend")
-            st.caption("Persentase biaya terhadap GMV (Target: Semakin rendah semakin baik).")
+            st.caption("Batas aman (Target Cost Ratio). Cari bulan dengan rasio terendah.")
             
             fig_ratio = go.Figure()
             
             fig_ratio.add_trace(go.Scatter(
                 x=df_bs['Month'], y=df_bs['%Cost'],
-                mode='lines+markers',
+                mode='lines+markers+text',
+                text=[f"{x:.2f}%" for x in df_bs['%Cost']],
+                textposition='top center',
                 fill='tozeroy',
-                fillcolor='rgba(16, 185, 129, 0.1)', # Soft Green fill
-                line=dict(color='#10B981', width=3), # Emerald
+                fillcolor='rgba(245, 158, 11, 0.1)', 
+                line=dict(color='#F59E0B', width=3), 
                 marker=dict(size=8),
                 name='% Cost'
             ))
             
             # Add Average Line
-            avg_cost_pct = df_bs['%Cost'].mean()
-            fig_ratio.add_hline(y=avg_cost_pct, line_dash="dash", line_color="gray", annotation_text="Avg Ratio")
+            fig_ratio.add_hline(y=avg_cost_pct, line_dash="dash", line_color="gray", annotation_text=f"Avg: {avg_cost_pct:.2f}%")
             
             fig_ratio.update_layout(
                 height=400,
-                xaxis_title="Month",
-                yaxis=dict(title="% Cost Ratio", range=[0, max(df_bs['%Cost'])*1.2]),
-                plot_bgcolor='white'
+                yaxis=dict(title="% Cost Ratio", range=[0, max(df_bs['%Cost'])*1.3]),
+                plot_bgcolor='white',
+                margin=dict(t=30, b=10, l=10, r=10)
             )
             st.plotly_chart(fig_ratio, use_container_width=True)
 
         # ==============================================================================
-        # 5. MARKET SHARE VISUALIZATION
+        # 5. SMART DATA EXPLORER (WITH CONDITIONAL FORMATTING)
         # ==============================================================================
         st.divider()
-        st.subheader("🏢 Market Share: BS vs Non-BS")
+        st.subheader("📋 Cost & Efficiency Matrix Detail")
         
-        # Calculate Non-BS GMV
-        df_bs['GMV Non-BS'] = df_bs['GMV Total (MP)'] - df_bs['GMV (Fullfil By BS)']
+        # Format the dataframe for display
+        disp_cols = ['Month', 'Total Order(BS)', 'GMV (Fullfil By BS)', 'Total Cost', 'BSA', 'CPO', '%Cost']
+        df_disp = df_bs[disp_cols].copy()
         
-        fig_share = go.Figure()
-        
-        fig_share.add_trace(go.Bar(
-            x=df_bs['Month'], y=df_bs['GMV (Fullfil By BS)'],
-            name='Fulfilled by BS',
-            marker_color='#6366F1' # Indigo
-        ))
-        
-        fig_share.add_trace(go.Bar(
-            x=df_bs['Month'], y=df_bs['GMV Non-BS'],
-            name='Non-BS',
-            marker_color='#E5E7EB' # Light Gray
-        ))
-        
-        fig_share.update_layout(
-            height=400,
-            title="Monthly GMV Contribution (Stacked)",
-            barmode='stack',
-            plot_bgcolor='white',
-            yaxis=dict(title="GMV (Rp)"),
-            legend=dict(orientation="h", y=1.1)
-        )
-        st.plotly_chart(fig_share, use_container_width=True)
+        # Pandas Styler untuk membuat Heatmap Table
+        # Kita highlight %Cost terendah (Hijau) dan tertinggi (Merah)
+        styler = df_disp.style\
+            .background_gradient(subset=['%Cost', 'CPO'], cmap='RdYlGn_r')\
+            .background_gradient(subset=['BSA'], cmap='Greens')\
+            .format({
+                'Total Order(BS)': "{:,.0f}",
+                'GMV (Fullfil By BS)': "Rp {:,.0f}",
+                'Total Cost': "Rp {:,.0f}",
+                'BSA': "Rp {:,.0f}",
+                'CPO': "Rp {:,.0f}",
+                '%Cost': "{:.2f}%"
+            })
+            
+        st.dataframe(styler, use_container_width=True, hide_index=True, height=400)
 
-        # Detail Data
-        with st.expander("📋 View Detail Data"):
-            disp_cols = ['Month', 'Total Order(BS)', 'GMV (Fullfil By BS)', 'Total Cost', 'CPO', '%Cost']
-            df_disp = df_bs[disp_cols].copy()
-            
-            # Formatting
-            df_disp['Total Cost'] = df_disp['Total Cost'].apply(lambda x: f"Rp {x:,.0f}")
-            df_disp['GMV (Fullfil By BS)'] = df_disp['GMV (Fullfil By BS)'].apply(lambda x: f"Rp {x:,.0f}")
-            df_disp['CPO'] = df_disp['CPO'].apply(lambda x: f"Rp {x:,.0f}")
-            df_disp['%Cost'] = df_disp['%Cost'].apply(lambda x: f"{x:.2f}%")
-            
-            st.dataframe(df_disp, use_container_width=True)
+        # Auto Insight Logics
+        best_month = df_bs.loc[df_bs['%Cost'].idxmin()]
+        st.success(f"🌟 **Best Efficiency Month:** {best_month['Month']} memiliki rasio biaya paling efisien yaitu **{best_month['%Cost']:.2f}%** dengan Cost per Order (CPO) sebesar **Rp {best_month['CPO']:,.0f}**.")
 
     else:
-        st.warning("⚠️ Data 'BS_Fullfilment_Cost' belum tersedia atau format tidak sesuai.")
+        st.warning("⚠️ Data 'BS_Fullfilment_Cost' belum tersedia atau format tidak sesuai. Pastikan sheet sudah diload.")
 
 # --- FOOTER ---
 st.divider()
