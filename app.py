@@ -5815,8 +5815,11 @@ with tab10:
         avg_cpo = df_bs['CPO'].mean()
         avg_bsa = df_bs['BSA'].mean()
         avg_cost_pct = df_bs['%Cost'].mean()
-        total_fulfillment_cost = df_bs['Total Cost'].sum()
-        total_orders = df_bs['Total Order(BS)'].sum()
+        
+        # Ambil data bulan terakhir
+        last_month_name = df_bs.iloc[-1]['Month']
+        last_month_cost = df_bs.iloc[-1]['Total Cost']
+        last_month_orders = df_bs.iloc[-1]['Total Order(BS)']
 
         st.markdown("""
         <style>
@@ -5853,7 +5856,7 @@ with tab10:
         with c3:
             st.markdown(render_bs_card("Avg % Cost Ratio", f"{avg_cost_pct:.2f}%", "Target ideal: Serendah mungkin", "#F59E0B"), unsafe_allow_html=True)
         with c4:
-            st.markdown(render_bs_card("Total Est. Cost", f"Rp {total_fulfillment_cost/1e6:,.0f} Jt", f"Untuk {total_orders:,.0f} Orders", "#6366F1"), unsafe_allow_html=True)
+            st.markdown(render_bs_card(f"Cost {last_month_name}", f"Rp {last_month_cost/1e6:,.0f} Jt", f"Untuk {last_month_orders:,.0f} Orders", "#6366F1"), unsafe_allow_html=True)
 
         st.write("") # Spacer
 
@@ -5886,15 +5889,22 @@ with tab10:
             hovertemplate='<b>%{x}</b><br>CPO: Rp %{y:,.0f}<extra></extra>'
         ))
 
+        # PERBAIKAN ERROR PLOTLY DI SINI (Format Penulisan Y-Axis)
         fig_unit.update_layout(
             height=450,
             xaxis_title="",
-            yaxis=dict(title="Basket Size (Rp)", showgrid=False, titlefont=dict(color='#10B981'), tickfont=dict(color='#10B981')),
+            yaxis=dict(
+                title=dict(text="Basket Size (Rp)", font=dict(color='#10B981')), 
+                showgrid=False, 
+                tickfont=dict(color='#10B981')
+            ),
             yaxis2=dict(
-                title="Cost Per Order (Rp)", 
-                overlaying='y', side='right', 
-                showgrid=True, gridcolor='rgba(0,0,0,0.05)',
-                titlefont=dict(color='#EF4444'), tickfont=dict(color='#EF4444')
+                title=dict(text="Cost Per Order (Rp)", font=dict(color='#EF4444')), 
+                overlaying='y', 
+                side='right', 
+                showgrid=True, 
+                gridcolor='rgba(0,0,0,0.05)',
+                tickfont=dict(color='#EF4444')
             ),
             hovermode="x unified",
             legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
