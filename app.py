@@ -3046,79 +3046,71 @@ transition: transform 0.3s ease;
             ), unsafe_allow_html=True)
 
         # ==============================================================================
-        # 3. STRATEGIC MAGIC QUADRANT (SCATTER PLOT)
+        # 3. STRATEGIC MAGIC QUADRANT (SCATTER PLOT) - PREMIUM EDITION
         # ==============================================================================
         st.write("")
-        st.subheader("🎯 Strategic Brand Positioning")
+        st.subheader("🎯 Strategic Brand Positioning (S&OP Portfolio Matrix)")
+        st.caption("Membagi brand ke dalam 4 kuadran strategis berdasarkan kontribusi Volume dan keandalan Akurasi.")
         
-        col_quad1, col_quad2 = st.columns([3, 1])
+        # Hapus col_quad1, col_quad2, kita buat grafiknya full width (lebar penuh)
+        scatter_data = active_df.copy()
+        # Hindari error log-scale jika ada volume 0
+        scatter_data = scatter_data[scatter_data['Forecast_Qty'] > 0]
         
-        with col_quad1:
-            scatter_data = active_df.copy()
-            median_vol = scatter_data['Forecast_Qty'].median()
-            target_acc = 80
-            
-            fig_quad = px.scatter(
-                scatter_data,
-                x='Forecast_Qty',
-                y='Accuracy',
-                size='SKU_Count',
-                color='Accuracy',
-                text='Brand',
-                color_continuous_scale='RdYlGn',
-                size_max=60,
-                custom_data=['Brand', 'SKU_Count', 'Forecast_Qty', 'Accuracy']
-            )
-            
-            # Quadrant Zones
-            fig_quad.add_shape(type="rect",
-                x0=median_vol, y0=0, x1=scatter_data['Forecast_Qty'].max()*1.1, y1=target_acc,
-                fillcolor="rgba(239, 68, 68, 0.1)", line_width=0, layer="below"
-            )
-            fig_quad.add_shape(type="rect",
-                x0=median_vol, y0=target_acc, x1=scatter_data['Forecast_Qty'].max()*1.1, y1=110,
-                fillcolor="rgba(16, 185, 129, 0.1)", line_width=0, layer="below"
-            )
-            
-            fig_quad.add_hline(y=target_acc, line_dash="dash", line_color="gray", annotation_text="Target 80%")
-            fig_quad.add_vline(x=median_vol, line_dash="dash", line_color="gray", annotation_text="Median Vol")
+        median_vol = scatter_data['Forecast_Qty'].median()
+        target_acc = 80
+        
+        fig_quad = px.scatter(
+            scatter_data,
+            x='Forecast_Qty',
+            y='Accuracy',
+            size='SKU_Count',
+            color='Accuracy',
+            text='Brand',
+            color_continuous_scale='RdYlGn',
+            size_max=50,
+            custom_data=['Brand', 'SKU_Count', 'Forecast_Qty', 'Accuracy']
+        )
+        
+        # Quadrant Zones Background
+        max_vol = scatter_data['Forecast_Qty'].max() * 1.5
+        fig_quad.add_shape(type="rect",
+            x0=median_vol, y0=0, x1=max_vol, y1=target_acc,
+            fillcolor="rgba(239, 68, 68, 0.08)", line_width=0, layer="below" # Red tint
+        )
+        fig_quad.add_shape(type="rect",
+            x0=median_vol, y0=target_acc, x1=max_vol, y1=110,
+            fillcolor="rgba(16, 185, 129, 0.08)", line_width=0, layer="below" # Green tint
+        )
+        
+        # Garis Pembatas (Crosshair)
+        fig_quad.add_hline(y=target_acc, line_dash="dash", line_color="gray", annotation_text="Target Accuracy (80%)")
+        fig_quad.add_vline(x=median_vol, line_dash="dash", line_color="gray", annotation_text="Median Volume")
 
-            fig_quad.update_traces(
-                textposition='top center',
-                hovertemplate="<b>%{customdata[0]}</b><br>Accuracy: %{y:.1f}%<br>Volume: %{x:,.0f}<br>SKUs: %{marker.size}<extra></extra>"
-            )
-            
-            fig_quad.update_layout(
-                height=500,
-                xaxis_title="Forecast Volume (Log Scale)",
-                yaxis_title="Accuracy (%)",
-                xaxis_type="log", 
-                yaxis_range=[40, 105],
-                plot_bgcolor="white",
-                margin=dict(t=20, l=20, r=20, b=20)
-            )
-            st.plotly_chart(fig_quad, use_container_width=True)
+        # --- FITUR PRO: WATERMARK LABEL LANGSUNG DI DALAM GRAFIK ---
+        fig_quad.add_annotation(x=0.95, y=0.95, xref="paper", yref="paper", text="🌟 STARS<br><span style='font-size:12px'>High Vol, High Acc</span>", showarrow=False, font=dict(size=18, color="#10B981", weight="bold"), opacity=0.3, align="right")
+        fig_quad.add_annotation(x=0.95, y=0.05, xref="paper", yref="paper", text="🚨 RISK (PRIORITY FIX)<br><span style='font-size:12px'>High Vol, Low Acc</span>", showarrow=False, font=dict(size=18, color="#EF4444", weight="bold"), opacity=0.3, align="right")
+        fig_quad.add_annotation(x=0.05, y=0.95, xref="paper", yref="paper", text="❓ NICHE / QUESTION<br><span style='font-size:12px'>Low Vol, High Acc</span>", showarrow=False, font=dict(size=18, color="#F59E0B", weight="bold"), opacity=0.3, align="left")
+        fig_quad.add_annotation(x=0.05, y=0.05, xref="paper", yref="paper", text="💤 SLEEPERS<br><span style='font-size:12px'>Low Vol, Low Acc</span>", showarrow=False, font=dict(size=18, color="#6B7280", weight="bold"), opacity=0.3, align="left")
 
-        with col_quad2:
-            # Fixed HTML Indentation
-            st.markdown("""
-<div style="background:#f9fafb; padding:15px; border-radius:10px; border:1px solid #eee; font-size:0.85rem;">
-<h5 style="margin-top:0;">Quadrant Guide</h5>
-<p><strong>🌟 STARS (Top Right)</strong><br>
-<span style="color:#10B981;">High Vol / High Acc</span><br>
-Brand performa terbaik. Pertahankan stok & service level.</p>
-<p><strong>🚨 RISK AREA (Bottom Right)</strong><br>
-<span style="color:#EF4444;">High Vol / Low Acc</span><br>
-<b>Prioritas Perbaikan!</b> Kesalahan forecast di sini berdampak besar pada stok/sales.</p>
-<p><strong>❓ QUESTION (Top Left)</strong><br>
-<span style="color:#F59E0B;">Low Vol / High Acc</span><br>
-Niche player yang stabil. Potensi untuk di-scale up?</p>
-<p><strong>💤 SLEEPERS (Bottom Left)</strong><br>
-<span style="color:#6B7280;">Low Vol / Low Acc</span><br>
-Kurang signifikan. Evaluasi portofolio SKU.</p>
-</div>
-""", unsafe_allow_html=True)
-
+        fig_quad.update_traces(
+            textposition='top center',
+            textfont=dict(weight='bold', color='#1F2937'),
+            hovertemplate="<b>%{customdata[0]}</b><br>Accuracy: %{y:.1f}%<br>Volume: %{x:,.0f}<br>SKUs: %{marker.size}<extra></extra>"
+        )
+        
+        fig_quad.update_layout(
+            height=550, # Dibuat lebih tinggi agar lapang
+            xaxis_title="Forecast Volume (Log Scale) ➡️",
+            yaxis_title="Accuracy (%) ➡️",
+            xaxis_type="log", 
+            yaxis_range=[max(0, scatter_data['Accuracy'].min()-10), min(105, scatter_data['Accuracy'].max()+10)], # Dinamis
+            plot_bgcolor="white",
+            coloraxis_showscale=False, # Sembunyikan colorbar legend karena sudah ada zona warna
+            margin=dict(t=20, l=20, r=20, b=20)
+        )
+        st.plotly_chart(fig_quad, use_container_width=True)
+        
         # ==============================================================================
         # 4. BRAND PERFORMANCE COMBO CHART (BAR + LINE) - DYNAMIC COLORS
         # ==============================================================================
