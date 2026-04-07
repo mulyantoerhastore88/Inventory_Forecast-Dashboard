@@ -3111,19 +3111,31 @@ Kurang signifikan. Evaluasi portofolio SKU.</p>
         # ==============================================================================
         st.divider()
         st.subheader("📊 Brand Detail: Volume vs Accuracy")
+        st.caption("Membandingkan volume Forecast (Plan) vs PO (Eksekusi) beserta persentase akurasinya.")
         
-        # Sort by Volume
+        # Sort by Volume (Berdasarkan Forecast_Qty)
         chart_df = active_df.sort_values('Forecast_Qty', ascending=False)
 
         fig_combo = go.Figure()
 
-        # Bar: Volume
+        # Bar 1: Forecast Volume (Plan)
         fig_combo.add_trace(go.Bar(
             x=chart_df['Brand'],
             y=chart_df['Forecast_Qty'],
-            name='Forecast Volume',
-            marker_color='rgba(99, 102, 241, 0.2)', # Indigo Transparan elegan
-            marker_line_color='rgba(99, 102, 241, 0.8)',
+            name='Forecast Volume (Plan)',
+            marker_color='rgba(99, 102, 241, 0.7)', # Soft Indigo
+            marker_line_color='rgba(99, 102, 241, 1.0)',
+            marker_line_width=1.5,
+            yaxis='y1'
+        ))
+
+        # Bar 2: PO Volume (Execution)
+        fig_combo.add_trace(go.Bar(
+            x=chart_df['Brand'],
+            y=chart_df['PO_Qty'],
+            name='PO Volume (Execution)',
+            marker_color='rgba(245, 158, 11, 0.7)', # Soft Amber/Orange
+            marker_line_color='rgba(245, 158, 11, 1.0)',
             marker_line_width=1.5,
             yaxis='y1'
         ))
@@ -3146,24 +3158,25 @@ Kurang signifikan. Evaluasi portofolio SKU.</p>
         ))
 
         fig_combo.update_layout(
-            height=450,
-            xaxis_title="Brand (Sorted by Volume)",
+            height=480,
+            barmode='group', # Menjadikan Bar Forecast & PO bersebelahan
+            xaxis_title="Brand (Sorted by Forecast Volume)",
             yaxis=dict(
-                title="Forecast Volume",
+                title="Volume (Units)",
                 showgrid=False
             ),
             yaxis2=dict(
                 title="Accuracy (%)",
                 overlaying='y',
                 side='right',
-                range=[0, 120], # Ruang ekstra untuk label teks
+                range=[0, 130], # Ruang ekstra agar label teks persentase tidak terpotong di atas
                 showgrid=True,
                 gridcolor='rgba(0,0,0,0.05)'
             ),
             hovermode="x unified",
-            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+            legend=dict(orientation="h", y=1.15, x=0.5, xanchor="center"),
             plot_bgcolor='white',
-            margin=dict(t=40, b=0)
+            margin=dict(t=50, b=0)
         )
         
         # Tambah garis target akurasi
