@@ -893,51 +893,54 @@ def calculate_eoq(demand, order_cost, holding_cost_per_unit):
     return round(eoq)
 
 def calculate_forecast_bias(df_forecast, df_po):
-    """Calculate forecast bias (systematic over/under forecasting)"""
+    """Calculate aggregate volume-weighted forecast bias"""
     
     if df_forecast.empty or df_po.empty:
-        return {}
+        return pd.DataFrame()
     
     try:
-        # Get common months
         forecast_months = sorted(df_forecast['Month'].unique())
         po_months = sorted(df_po['Month'].unique())
         common_months = sorted(set(forecast_months) & set(po_months))
         
         if not common_months:
-            return {}
+            return pd.DataFrame()
         
         bias_results = []
         
         for month in common_months:
-            df_f_month = df_forecast[df_forecast['Month'] == month]
+            # Tetap hilangkan yang Forecast-nya 0 (Unplanned)
+            df_f_month = df_forecast[(df_forecast['Month'] == month) & (df_forecast['Forecast_Qty'] > 0)]
             df_p_month = df_po[df_po['Month'] == month]
             
-            # Merge forecast and PO
             df_merged = pd.merge(
                 df_f_month[['SKU_ID', 'Forecast_Qty']],
                 df_p_month[['SKU_ID', 'PO_Qty']],
-                on='SKU_ID',
-                how='inner'
+                on='SKU_ID', how='inner'
             )
             
-            # Calculate bias
+            if df_merged.empty:
+                continue
+                
             df_merged['Bias'] = df_merged['PO_Qty'] - df_merged['Forecast_Qty']
-            df_merged['Bias_Percentage'] = np.where(
-                df_merged['Forecast_Qty'] > 0,
-                (df_merged['Bias'] / df_merged['Forecast_Qty'] * 100),
-                0
-            )
             
-            avg_bias = df_merged['Bias'].mean()
-            avg_bias_pct = df_merged['Bias_Percentage'].mean()
+            # --- PERBAIKAN: AGGREGATE BIAS ---
+            total_month_rofo = df_merged['Forecast_Qty'].sum()
+            total_month_po = df_merged['PO_Qty'].sum()
+            
+            if total_month_rofo > 0:
+                aggregate_bias_pct = ((total_month_po - total_month_rofo) / total_month_rofo) * 100
+            else:
+                aggregate_bias_pct = 0
+            
+            avg_bias = df_merged['Bias'].mean() # Rata-rata satuan unit (masih oke disimpan)
             
             bias_results.append({
                 'Month': month,
                 'Avg_Bias': avg_bias,
-                'Avg_Bias_Percentage': avg_bias_pct,
-                'Over_Forecast_SKUs': len(df_merged[df_merged['Bias'] > 0]),
-                'Under_Forecast_SKUs': len(df_merged[df_merged['Bias'] < 0])
+                'Avg_Bias_Percentage': aggregate_bias_pct, # Sekarang bebas dari outlier ekstrim!
+                'Over_Forecast_SKUs': len(df_merged[df_merged['Bias'] < 0]), # PO < Rofo
+                'Under_Forecast_SKUs': len(df_merged[df_merged['Bias'] > 0]) # PO > Rofo
             })
         
         return pd.DataFrame(bias_results)
