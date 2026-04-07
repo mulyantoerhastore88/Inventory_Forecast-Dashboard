@@ -2629,17 +2629,17 @@ if monthly_performance:
 st.divider()
 
 # --- MAIN TABS ---
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+tab1, tab2, tab5, tab3, tab4, tab10, tab7, tab9, tab8, tab6 = st.tabs([
     "📈 Monthly Performance Details",
     "🏷️ Forecast Performance by Brand & Tier Analysis",
+    "📈 Sales & Forecast Analysis",
     "📦 Inventory Analysis",
     "🔍 SKU Evaluation",
-    "📈 Sales & Forecast Analysis",
-    "📋 Data Explorer",
-    "🛒 Ecommerce Forecast",  
-    "💰 Profitability Analysis",
+    "🚚 Fulfillment Cost Analysis",
+    "🛒 Ecommerce Forecast",
     "🤝 Reseller Forecast",
-    "🚚 Fulfillment Cost Analysis" 
+    "💰 Profitability Analysis",
+    "📋 Data Explorer"
 ])
 
         
