@@ -3435,7 +3435,7 @@ with tab3:
         
         with c1:
             # Soft Indigo
-            st.markdown(render_inv_card("Total Asset Value", val_display, f"{total_sku:,} Items", 
+            st.markdown(render_inv_card("Total Inventory Value (Est.)", val_display, f"{total_sku:,} Items", 
                 "linear-gradient(135deg, #7986cb 0%, #5c6bc0 100%)"), unsafe_allow_html=True)
         with c2:
             # Soft Teal
