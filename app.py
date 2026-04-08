@@ -4321,7 +4321,7 @@ with tab5:
 
             with c_gap1:
                 st.markdown("##### 🚀 Top Unexpected Demand (Sales > Rofo)")
-                st.caption("Barang ini **LAKU KERAS** melebihi prediksi. Cek stok, awas barang kosong!")
+                st.caption("Barang ini **LAKU KERAS** melebihi prediksi. Cek stok, Hati hati OOS!")
                 
                 fig_spike = go.Figure()
                 fig_spike.add_trace(go.Bar(
@@ -4344,7 +4344,7 @@ with tab5:
 
             with c_gap2:
                 st.markdown("##### 🐌 Top Slow Moving vs Plan (Sales < Rofo)")
-                st.caption("Barang ini **Over Estimated** dibanding prediksi. Cek overstock, perlu promo?")
+                st.caption("Barang ini **Over Estimated** dibanding prediksi. Hati-hati overstock!!")
                 
                 fig_drop = go.Figure()
                 fig_drop.add_trace(go.Bar(
