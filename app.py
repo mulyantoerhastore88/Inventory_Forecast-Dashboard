@@ -1925,11 +1925,14 @@ if monthly_performance:
                 x=summary_df['Month_Display'],
                 y=summary_df['Accuracy'],
                 name="Accuracy %",
-                mode='lines+markers',
-                line=dict(color='#6366F1', width=3, shape='spline', smoothing=1.3), # Garis tetap warna Indigo/Ungu biar elegan
+                mode='lines+markers+text', # <--- PERBAIKAN: Tambah 'text' agar label angka muncul
+                text=[f"{val:.1f}%" for val in summary_df['Accuracy']], # <--- Format angkanya
+                textposition="top center", # <--- Posisi angka tepat di atas titik
+                textfont=dict(size=11, color='#1F2937', weight='bold'), # <--- Gaya tulisan angka
+                line=dict(color='#6366F1', width=3, shape='spline', smoothing=1.3),
                 marker=dict(
-                    size=14, # Sedikit diperbesar
-                    color=marker_colors, # Pakai list warna yg sudah dilogika di atas
+                    size=12,
+                    color=marker_colors,
                     line=dict(width=2, color='white')
                 ),
                 hovertemplate=(
@@ -1954,13 +1957,20 @@ if monthly_performance:
             plot_bgcolor='white',
             paper_bgcolor='white',
             hovermode='x unified',
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            margin=dict(t=60, b=40, l=40, r=40)
+            # <--- PERBAIKAN: Posisi Legend dipindah ke BAWAH TENGAH agar rapi --->
+            legend=dict(
+                orientation="h", 
+                yanchor="top", 
+                y=-0.15, 
+                xanchor="center", 
+                x=0.5
+            ),
+            margin=dict(t=60, b=60, l=40, r=40) # Tambah margin bawah (b=60) agar legend tidak terpotong
         )
 
         fig.update_yaxes(
             title="<b>Accuracy (%)</b>", 
-            range=[40, 100], 
+            range=[40, 115], # <--- PERBAIKAN: Limit dinaikkan ke 115 agar label teks di atas titik tidak nabrak atap grafik
             gridcolor='rgba(0,0,0,0.05)',
             secondary_y=False,
             tickfont=dict(color='#4F46E5', weight='bold')
