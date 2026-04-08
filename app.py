@@ -4139,7 +4139,7 @@ with tab5:
             # ==============================================================================
             st.divider()
             st.subheader("📊 Performance Triad: Plan vs Exec vs Result")
-            st.caption("Grafik ini membandingkan langsung posisi Rencana (Rofo), Pembelian (PO), dan Penjualan (Sales) setiap bulan.")
+            st.caption("Grafik membandingkan posisi Rencana (Rofo), Pembelian (PO), dan Penjualan (Sales). **Angka persentase pada batang hijau (Sales) menunjukkan pencapaian terhadap PO (Sell-Through).**")
 
             fig_main = go.Figure()
 
@@ -4158,20 +4158,32 @@ with tab5:
                 name='Execution (PO)',
                 marker_color='#FFB74D', 
                 text=[f"{x:,.0f}" for x in df_trend['PO']],
-                textposition='auto'
+                textposition='auto',
+                textfont=dict(size=11)
             ))
 
-            # Sales (Result)
+            # Sales (Result) - DITAMBAHKAN PERSENTASE VS PO
+            sales_text = []
+            for s, p in zip(df_trend['Sales'], df_trend['PO']):
+                if p > 0:
+                    pct = (s / p) * 100
+                    sales_text.append(f"{s:,.0f}<br>({pct:.1f}%)") # Memunculkan Qty dan % di bawahnya
+                elif s > 0:
+                    sales_text.append(f"{s:,.0f}<br>(No PO)")
+                else:
+                    sales_text.append("0")
+
             fig_main.add_trace(go.Bar(
                 x=df_trend['Month_Txt'], y=df_trend['Sales'],
                 name='Result (Sales)',
                 marker_color='#4DB6AC', 
-                text=[f"{x:,.0f}" for x in df_trend['Sales']],
-                textposition='auto'
+                text=sales_text,
+                textposition='auto',
+                textfont=dict(size=11, weight='bold') # Dipertegas agar mudah dibaca
             ))
 
             fig_main.update_layout(
-                height=450,
+                height=480, # Sedikit ditinggikan agar label teks bersusun (2 baris) tidak terpotong
                 xaxis_title="Month",
                 yaxis_title="Quantity (Units)",
                 barmode='group', 
