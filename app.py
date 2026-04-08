@@ -5839,9 +5839,6 @@ with tab10:
             0
         )
 
-        # ==============================================================================
-        # 2. EXECUTIVE KPI CARDS (YEARLY / AGGREGATE VIEW)
-        # ==============================================================================
         # Hitung Agregat untuk Executive Summary
         avg_cpo = df_bs['CPO'].mean()
         avg_bsa = df_bs['BSA'].mean()
@@ -5852,6 +5849,41 @@ with tab10:
         last_month_cost = df_bs.iloc[-1]['Total Cost']
         last_month_orders = df_bs.iloc[-1]['Total Order(BS)']
 
+        # ==============================================================================
+        # 2. COST & EFFICIENCY MATRIX DETAIL (SMART DATA EXPLORER)
+        # ==============================================================================
+        st.markdown("### 📋 Cost & Efficiency Matrix Detail")
+        
+        # Format the dataframe for display
+        disp_cols = ['Month', 'Total Order(BS)', 'GMV (Fullfil By BS)', 'Total Cost', 'BSA', 'CPO', '%Cost']
+        df_disp = df_bs[disp_cols].copy()
+        
+        # Pandas Styler untuk membuat Heatmap Table
+        styler = df_disp.style\
+            .background_gradient(subset=['%Cost', 'CPO'], cmap='RdYlGn_r')\
+            .background_gradient(subset=['BSA'], cmap='Greens')\
+            .format({
+                'Total Order(BS)': "{:,.0f}",
+                'GMV (Fullfil By BS)': "Rp {:,.0f}",
+                'Total Cost': "Rp {:,.0f}",
+                'BSA': "Rp {:,.0f}",
+                'CPO': "Rp {:,.0f}",
+                '%Cost': "{:.2f}%"
+            })
+            
+        st.dataframe(styler, use_container_width=True, hide_index=True, height=400)
+
+        # Auto Insight Logics
+        best_month = df_bs.loc[df_bs['%Cost'].idxmin()]
+        st.success(f"🌟 **Best Efficiency Month:** {best_month['Month']} memiliki rasio biaya paling efisien yaitu **{best_month['%Cost']:.2f}%** dengan Cost per Order (CPO) sebesar **Rp {best_month['CPO']:,.0f}**.")
+
+        st.divider()
+
+        # ==============================================================================
+        # 3. EXECUTIVE KPI CARDS 
+        # ==============================================================================
+        st.markdown("### 🎯 Executive KPI Cards")
+        
         st.markdown("""
         <style>
             .bs-card {
@@ -5889,70 +5921,16 @@ with tab10:
         with c4:
             st.markdown(render_bs_card(f"Cost {last_month_name}", f"Rp {last_month_cost/1e6:,.0f} Jt", f"Untuk {last_month_orders:,.0f} Orders", "#6366F1"), unsafe_allow_html=True)
 
-        st.write("") # Spacer
-
-        # ==============================================================================
-        # 3. UNIT ECONOMICS: BSA VS CPO (THE PROFITABILITY SPREAD)
-        # ==============================================================================
         st.divider()
-        st.subheader("⚖️ Unit Economics Spread (BSA vs CPO)")
-        st.caption("Menampilkan tren **Basket Size** dibandingkan dengan **Cost Per Order**. Area hijau menunjukkan 'Spread' atau potensi efisiensi profit per order.")
-
-        fig_unit = go.Figure()
-
-        # Fill area between BSA and CPO to show the "Margin Spread" visually
-        fig_unit.add_trace(go.Scatter(
-            x=df_bs['Month'], y=df_bs['BSA'],
-            name='Basket Size (BSA)',
-            mode='lines+markers',
-            line=dict(color='#10B981', width=3), # Emerald Green
-            marker=dict(size=8, symbol='circle'),
-            hovertemplate='<b>%{x}</b><br>BSA: Rp %{y:,.0f}<extra></extra>'
-        ))
-
-        fig_unit.add_trace(go.Scatter(
-            x=df_bs['Month'], y=df_bs['CPO'],
-            name='Cost Per Order (CPO)',
-            mode='lines+markers',
-            line=dict(color='#EF4444', width=3, dash='dot'), # Red
-            marker=dict(size=8, symbol='diamond'),
-            yaxis='y2',
-            hovertemplate='<b>%{x}</b><br>CPO: Rp %{y:,.0f}<extra></extra>'
-        ))
-
-        # PERBAIKAN ERROR PLOTLY DI SINI (Format Penulisan Y-Axis)
-        fig_unit.update_layout(
-            height=450,
-            xaxis_title="",
-            yaxis=dict(
-                title=dict(text="Basket Size (Rp)", font=dict(color='#10B981')), 
-                showgrid=False, 
-                tickfont=dict(color='#10B981')
-            ),
-            yaxis2=dict(
-                title=dict(text="Cost Per Order (Rp)", font=dict(color='#EF4444')), 
-                overlaying='y', 
-                side='right', 
-                showgrid=True, 
-                gridcolor='rgba(0,0,0,0.05)',
-                tickfont=dict(color='#EF4444')
-            ),
-            hovermode="x unified",
-            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
-            plot_bgcolor='white',
-            margin=dict(t=50, b=20, l=20, r=20)
-        )
-        st.plotly_chart(fig_unit, use_container_width=True)
 
         # ==============================================================================
         # 4. SCALABILITY & COST RATIO TREND
         # ==============================================================================
-        st.divider()
         col_vol, col_ratio = st.columns([1.2, 1])
 
         with col_vol:
             st.subheader("📦 Scalability: GMV vs Cost")
-            st.caption("Apakah biaya ikut naik saat GMV naik?")
+            st.caption("Apakah biaya ikut membengkak saat GMV naik?")
             
             fig_eff = go.Figure()
             
@@ -6011,35 +5989,58 @@ with tab10:
             )
             st.plotly_chart(fig_ratio, use_container_width=True)
 
-        # ==============================================================================
-        # 5. SMART DATA EXPLORER (WITH CONDITIONAL FORMATTING)
-        # ==============================================================================
         st.divider()
-        st.subheader("📋 Cost & Efficiency Matrix Detail")
-        
-        # Format the dataframe for display
-        disp_cols = ['Month', 'Total Order(BS)', 'GMV (Fullfil By BS)', 'Total Cost', 'BSA', 'CPO', '%Cost']
-        df_disp = df_bs[disp_cols].copy()
-        
-        # Pandas Styler untuk membuat Heatmap Table
-        # Kita highlight %Cost terendah (Hijau) dan tertinggi (Merah)
-        styler = df_disp.style\
-            .background_gradient(subset=['%Cost', 'CPO'], cmap='RdYlGn_r')\
-            .background_gradient(subset=['BSA'], cmap='Greens')\
-            .format({
-                'Total Order(BS)': "{:,.0f}",
-                'GMV (Fullfil By BS)': "Rp {:,.0f}",
-                'Total Cost': "Rp {:,.0f}",
-                'BSA': "Rp {:,.0f}",
-                'CPO': "Rp {:,.0f}",
-                '%Cost': "{:.2f}%"
-            })
-            
-        st.dataframe(styler, use_container_width=True, hide_index=True, height=400)
 
-        # Auto Insight Logics
-        best_month = df_bs.loc[df_bs['%Cost'].idxmin()]
-        st.success(f"🌟 **Best Efficiency Month:** {best_month['Month']} memiliki rasio biaya paling efisien yaitu **{best_month['%Cost']:.2f}%** dengan Cost per Order (CPO) sebesar **Rp {best_month['CPO']:,.0f}**.")
+        # ==============================================================================
+        # 5. UNIT ECONOMICS: BSA VS CPO (THE PROFITABILITY SPREAD)
+        # ==============================================================================
+        st.subheader("⚖️ Unit Economics Spread (BSA vs CPO)")
+        st.caption("Menampilkan tren **Basket Size** dibandingkan dengan **Cost Per Order**. Area hijau menunjukkan 'Spread' atau potensi efisiensi profit per order.")
+
+        fig_unit = go.Figure()
+
+        # Fill area between BSA and CPO to show the "Margin Spread" visually
+        fig_unit.add_trace(go.Scatter(
+            x=df_bs['Month'], y=df_bs['BSA'],
+            name='Basket Size (BSA)',
+            mode='lines+markers',
+            line=dict(color='#10B981', width=3), # Emerald Green
+            marker=dict(size=8, symbol='circle'),
+            hovertemplate='<b>%{x}</b><br>BSA: Rp %{y:,.0f}<extra></extra>'
+        ))
+
+        fig_unit.add_trace(go.Scatter(
+            x=df_bs['Month'], y=df_bs['CPO'],
+            name='Cost Per Order (CPO)',
+            mode='lines+markers',
+            line=dict(color='#EF4444', width=3, dash='dot'), # Red
+            marker=dict(size=8, symbol='diamond'),
+            yaxis='y2',
+            hovertemplate='<b>%{x}</b><br>CPO: Rp %{y:,.0f}<extra></extra>'
+        ))
+
+        fig_unit.update_layout(
+            height=450,
+            xaxis_title="",
+            yaxis=dict(
+                title=dict(text="Basket Size (Rp)", font=dict(color='#10B981')), 
+                showgrid=False, 
+                tickfont=dict(color='#10B981')
+            ),
+            yaxis2=dict(
+                title=dict(text="Cost Per Order (Rp)", font=dict(color='#EF4444')), 
+                overlaying='y', 
+                side='right', 
+                showgrid=True, 
+                gridcolor='rgba(0,0,0,0.05)',
+                tickfont=dict(color='#EF4444')
+            ),
+            hovermode="x unified",
+            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+            plot_bgcolor='white',
+            margin=dict(t=50, b=20, l=20, r=20)
+        )
+        st.plotly_chart(fig_unit, use_container_width=True)
 
     else:
         st.warning("⚠️ Data 'BS_Fullfilment_Cost' belum tersedia atau format tidak sesuai. Pastikan sheet sudah diload.")
