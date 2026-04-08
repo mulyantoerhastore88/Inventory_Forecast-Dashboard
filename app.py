@@ -5929,16 +5929,16 @@ with tab10:
         col_vol, col_ratio = st.columns([1.2, 1])
 
         with col_vol:
-            st.subheader("📦 Scalability: GMV vs Cost")
-            st.caption("Apakah biaya ikut membengkak saat GMV naik?")
+            st.subheader("📦 Scalability: Orders vs Cost")
+            st.caption("Fulfillment cost dipicu oleh jumlah paket (Volume). Apakah biaya tetap efisien saat order melonjak?")
             
             fig_eff = go.Figure()
             
-            # Bar: GMV BS
+            # Bar: Total Orders (Volume Fisik)
             fig_eff.add_trace(go.Bar(
-                x=df_bs['Month'], y=df_bs['GMV (Fullfil By BS)'],
-                name='GMV (Fulfilled by BS)',
-                marker_color='rgba(99, 102, 241, 0.7)', # Indigo
+                x=df_bs['Month'], y=df_bs['Total Order(BS)'],
+                name='Total Orders',
+                marker_color='rgba(59, 130, 246, 0.7)', # Soft Blue
             ))
             
             # Line: Total Cost
@@ -5952,7 +5952,7 @@ with tab10:
             
             fig_eff.update_layout(
                 height=400,
-                yaxis=dict(title="GMV (Rp)", showgrid=False),
+                yaxis=dict(title="Total Orders (Qty)", showgrid=False),
                 yaxis2=dict(title="Total Cost (Rp)", overlaying='y', side='right', showgrid=True, gridcolor='rgba(0,0,0,0.05)'),
                 legend=dict(orientation="h", y=1.1),
                 plot_bgcolor='white',
@@ -5992,35 +5992,43 @@ with tab10:
         st.divider()
 
         # ==============================================================================
-        # 5. UNIT ECONOMICS: BSA VS CPO (THE PROFITABILITY SPREAD)
+        # 5. UNIT ECONOMICS: BSA VS % COST RATIO
         # ==============================================================================
-        st.subheader("⚖️ Unit Economics Spread (BSA vs CPO)")
-        st.caption("Menampilkan tren **Basket Size** dibandingkan dengan **Cost Per Order**. Area hijau menunjukkan 'Spread' atau potensi efisiensi profit per order.")
+        st.subheader("⚖️ Unit Economics Spread (BSA vs % Cost Ratio)")
+        st.caption("Menampilkan tren **Basket Size (BSA)** dibandingkan dengan **% Cost Ratio**. Sesuai tesis: Semakin besar nilai BSA, idealnya persentase beban biaya operasional (%Cost) akan semakin tertekan/mengecil.")
 
         fig_unit = go.Figure()
 
-        # Fill area between BSA and CPO to show the "Margin Spread" visually
+        # Line 1: Basket Size (Higher is better)
         fig_unit.add_trace(go.Scatter(
             x=df_bs['Month'], y=df_bs['BSA'],
             name='Basket Size (BSA)',
-            mode='lines+markers',
+            mode='lines+markers+text',
+            text=[f"Rp {x/1000:,.0f}k" for x in df_bs['BSA']], # Format text k agar rapi (cth: Rp 120k)
+            textposition='top center',
+            textfont=dict(color='#10B981', size=11, weight='bold'),
             line=dict(color='#10B981', width=3), # Emerald Green
             marker=dict(size=8, symbol='circle'),
             hovertemplate='<b>%{x}</b><br>BSA: Rp %{y:,.0f}<extra></extra>'
         ))
 
+        # Line 2: % Cost Ratio (Lower is better)
         fig_unit.add_trace(go.Scatter(
-            x=df_bs['Month'], y=df_bs['CPO'],
-            name='Cost Per Order (CPO)',
-            mode='lines+markers',
-            line=dict(color='#EF4444', width=3, dash='dot'), # Red
+            x=df_bs['Month'], y=df_bs['%Cost'],
+            name='% Cost Ratio',
+            mode='lines+markers+text',
+            text=[f"{x:.2f}%" for x in df_bs['%Cost']],
+            textposition='bottom center',
+            textfont=dict(color='#EF4444', size=11, weight='bold'),
+            line=dict(color='#EF4444', width=3, dash='dot'), # Red Dotted
             marker=dict(size=8, symbol='diamond'),
             yaxis='y2',
-            hovertemplate='<b>%{x}</b><br>CPO: Rp %{y:,.0f}<extra></extra>'
+            hovertemplate='<b>%{x}</b><br>% Cost Ratio: %{y:.2f}%<extra></extra>'
         ))
 
+        # Update Layout dengan 2 Sumbu Y (Kiri Rupiah, Kanan Persen)
         fig_unit.update_layout(
-            height=450,
+            height=480,
             xaxis_title="",
             yaxis=dict(
                 title=dict(text="Basket Size (Rp)", font=dict(color='#10B981')), 
@@ -6028,15 +6036,16 @@ with tab10:
                 tickfont=dict(color='#10B981')
             ),
             yaxis2=dict(
-                title=dict(text="Cost Per Order (Rp)", font=dict(color='#EF4444')), 
+                title=dict(text="% Cost Ratio", font=dict(color='#EF4444')), 
                 overlaying='y', 
                 side='right', 
                 showgrid=True, 
                 gridcolor='rgba(0,0,0,0.05)',
-                tickfont=dict(color='#EF4444')
+                tickfont=dict(color='#EF4444'),
+                ticksuffix="%" # Tambahkan simbol % di sumbu Y sebelah kanan
             ),
             hovermode="x unified",
-            legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"),
+            legend=dict(orientation="h", y=1.15, x=0.5, xanchor="center"),
             plot_bgcolor='white',
             margin=dict(t=50, b=20, l=20, r=20)
         )
