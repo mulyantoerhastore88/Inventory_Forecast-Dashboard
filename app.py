@@ -4138,7 +4138,7 @@ with tab5:
             # 3. MAIN COMPARISON CHART (GROUPED BAR)
             # ==============================================================================
             st.divider()
-            st.subheader("📊 Performance Triad: Plan vs Exec vs Result")
+            st.subheader("📊 Performance Triad: Plan(Rofo) vs Exec(PO) vs Result(Sales)")
             st.caption("Grafik membandingkan posisi Rencana (Rofo), Pembelian (PO), dan Penjualan (Sales). **Angka persentase pada batang hijau (Sales) menunjukkan pencapaian terhadap PO (Sell-Through).**")
 
             fig_main = go.Figure()
