@@ -6281,7 +6281,7 @@ with tab10:
         with col_ins2:
             st.warning(f"⚠️ **Needs Attention:** {worst_store['Store']} dengan Cost/GMV Ratio **{worst_store['Cost/GMV %']:.2f}%**")
         
-        # --- C. MONTHLY TREND PER STORE (DUAL AXIS CHART) ---
+                # --- C. MONTHLY TREND PER STORE (DUAL AXIS CHART) ---
         st.divider()
         st.subheader("📈 Monthly Trend by Store")
         st.caption("Grafik gabungan: % Cost Ratio (Garis) vs Cost per Order/CPO (Bar)")
@@ -6319,7 +6319,6 @@ with tab10:
                     textposition='outside',
                     textfont=dict(size=9, color=store_color),
                     legendgroup=store,
-                    legendgrouptitle_text=store,
                     yaxis='y1'
                 ))
                 
@@ -6336,7 +6335,6 @@ with tab10:
                     textposition='top center',
                     textfont=dict(size=10, color=store_color, weight='bold'),
                     legendgroup=store,
-                    legendgrouptitle_text=store,
                     yaxis='y2'
                 ))
             
@@ -6376,8 +6374,7 @@ with tab10:
                     x=1.02,
                     xanchor="left",
                     yanchor="top",
-                    font=dict(size=10),
-                    groupclick="toggleitem"
+                    font=dict(size=10)
                 ),
                 plot_bgcolor='white',
                 margin=dict(t=50, b=20, l=60, r=80),
@@ -6414,7 +6411,7 @@ with tab10:
                                 height=300,
                                 yaxis=dict(ticksuffix="%", title="% Cost"),
                                 plot_bgcolor='white',
-                                margin=dict(t=10, b=10, l=10, r=10)
+                                margin=dict(t=30, b=10, l=10, r=10)
                             )
                             st.plotly_chart(fig_pct, use_container_width=True)
                         
@@ -6433,7 +6430,7 @@ with tab10:
                                 height=300,
                                 yaxis=dict(title="Cost per Order (Rp)"),
                                 plot_bgcolor='white',
-                                margin=dict(t=10, b=10, l=10, r=10)
+                                margin=dict(t=30, b=10, l=10, r=10)
                             )
                             st.plotly_chart(fig_cpo, use_container_width=True)
                         
