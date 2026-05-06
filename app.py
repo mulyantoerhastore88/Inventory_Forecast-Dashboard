@@ -616,9 +616,6 @@ def load_and_process_data(_client):
                 if col in df_bs.columns:
                     df_bs[col] = df_bs[col].apply(clean_currency).fillna(0)
             
-            # Convert Percentages (karena 3.14% jadi 3.14, mungkin perlu dibagi 100 utk kalkulasi, tapi utk display biar saja)
-            # Kita tandai kolom ini
-            
             # Parse Date (Apr-25)
             df_bs['Month_Date'] = pd.to_datetime(df_bs['Month'], format='%b-%y', errors='coerce')
             df_bs = df_bs.sort_values('Month_Date')
@@ -629,48 +626,56 @@ def load_and_process_data(_client):
             st.warning(f"Gagal load BS_Fullfilment_Cost: {e}")
             data['fulfillment'] = pd.DataFrame()
 
+        # ==============================================================================
+        # 9. EXPANSI FULLFILMENT COST (NEW SHEET)
+        # ==============================================================================
+        try:
+            ws_exp = _client.open_by_url(gsheet_url).worksheet("Expansi_Fullfilment_Cost")
+            df_exp = pd.DataFrame(ws_exp.get_all_records())
+            
+            # Cleaning Headers
+            df_exp.columns = [c.strip() for c in df_exp.columns]
+            
+            # Helper untuk bersihkan angka
+            def clean_currency_exp(x):
+                if isinstance(x, str):
+                    return pd.to_numeric(x.replace(',', '').replace('%', ''), errors='coerce')
+                return x
+        
+            # List kolom angka yang perlu dibersihkan
+            numeric_cols_exp = ['Total Cost', 'GMV', 'Order_Qty', 'BSA', 'Cost_per_Order']
+            
+            for col in numeric_cols_exp:
+                if col in df_exp.columns:
+                    df_exp[col] = df_exp[col].apply(clean_currency_exp).fillna(0)
+            
+            # Parse %Cost
+            if '%Cost' in df_exp.columns:
+                df_exp['%Cost'] = df_exp['%Cost'].apply(clean_currency_exp).fillna(0)
+            
+            # Parse Date (Jan 26, Feb 26, etc.)
+            # Coba beberapa format
+            try:
+                df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], format='%b %y', errors='coerce')
+            except:
+                try:
+                    df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], format='%b-%y', errors='coerce')
+                except:
+                    df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], errors='coerce')
+            
+            df_exp = df_exp.sort_values(['Store', 'Month_Date'])
+            
+            data['expansi_fulfillment'] = df_exp
+            
+        except Exception as e:
+            st.warning(f"Gagal load Expansi_Fullfilment_Cost: {e}")
+            data['expansi_fulfillment'] = pd.DataFrame()
+
         return data
         
     except Exception as e:
         st.error(f"Error loading data: {str(e)}")
         return {}
-
-    # ==============================================================================
-    # 9. EXPANSI FULLFILMENT COST (NEW SHEET)
-    # ==============================================================================
-    try:
-        ws_exp = _client.open_by_url(gsheet_url).worksheet("Expansi_Fullfilment_Cost")
-        df_exp = pd.DataFrame(ws_exp.get_all_records())
-        
-        # Cleaning Headers
-        df_exp.columns = [c.strip() for c in df_exp.columns]
-        
-        # Helper untuk bersihkan angka
-        def clean_currency(x):
-            if isinstance(x, str):
-                return pd.to_numeric(x.replace(',', '').replace('%', ''), errors='coerce')
-            return x
-    
-        # List kolom angka yang perlu dibersihkan
-        numeric_cols_exp = ['Total Cost', 'GMV', 'Order_Qty', 'BSA', 'Cost_per_Order']
-        
-        for col in numeric_cols_exp:
-            if col in df_exp.columns:
-                df_exp[col] = df_exp[col].apply(clean_currency).fillna(0)
-        
-        # Parse %Cost
-        if '%Cost' in df_exp.columns:
-            df_exp['%Cost'] = df_exp['%Cost'].apply(clean_currency).fillna(0)
-        
-        # Parse Date (Jan 26, Feb 26, etc.)
-        df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], format='%b %y', errors='coerce')
-        df_exp = df_exp.sort_values(['Store', 'Month_Date'])
-        
-        data['expansi_fulfillment'] = df_exp
-        
-    except Exception as e:
-        st.warning(f"Gagal load Expansi_Fullfilment_Cost: {e}")
-        data['expansi_fulfillment'] = pd.DataFrame()
         
 
 # --- FUNGSI BARU: LOAD DATA RESELLER LENGKAP ---
@@ -6068,7 +6073,7 @@ with tab10:
         # ==============================================================================
         # 2. COST & EFFICIENCY MATRIX DETAIL
         # ==============================================================================
-        st.markdown("### 📋 Cost & Efficiency Matrix Detail")
+        st.markdown("### 📋 Central Fulfillment (BS) - Cost & Efficiency Matrix")
         
         disp_cols = ['Month', 'Total Order(BS)', 'GMV (Fullfil By BS)', 'Total Cost', 'BSA', 'CPO', '%Cost']
         df_disp = df_bs[disp_cols].copy()
@@ -6091,7 +6096,7 @@ with tab10:
         st.success(f"🌟 **Best Efficiency Month:** {best_month['Month']} memiliki rasio biaya paling efisien yaitu **{best_month['%Cost']:.2f}%** dengan Cost per Order (CPO) sebesar **Rp {best_month['CPO']:,.0f}**.")
 
         # ==============================================================================
-        # 3. UNIT ECONOMICS SPREAD (BSA vs % COST RATIO) - SEKARANG DI SINI
+        # 3. UNIT ECONOMICS SPREAD (BSA vs % COST RATIO)
         # ==============================================================================
         st.divider()
         st.subheader("⚖️ Unit Economics Spread (BSA vs % Cost Ratio)")
@@ -6144,7 +6149,7 @@ with tab10:
         # 4. EXECUTIVE KPI CARDS
         # ==============================================================================
         st.divider()
-        st.markdown("### 🎯 Executive Summary KPI")
+        st.markdown("### 🎯 Central BS - Executive Summary KPI")
         
         st.markdown("""
         <style>
@@ -6193,6 +6198,9 @@ with tab10:
             fig_ratio.update_layout(height=400, yaxis=dict(title="% Cost Ratio", range=[0, max(df_bs['%Cost'])*1.3]), plot_bgcolor='white', margin=dict(t=30, b=10, l=10, r=10))
             st.plotly_chart(fig_ratio, use_container_width=True)
 
+    else:
+        st.warning("⚠️ Data 'BS_Fullfilment_Cost' belum tersedia.")
+
     # ==============================================================================
     # 6. EXPANSI FULFILLMENT COST (NEW SECTION)
     # ==============================================================================
@@ -6204,12 +6212,15 @@ with tab10:
     
     if not df_exp.empty:
         
+        # Urutkan data
+        df_exp = df_exp.sort_values(['Store', 'Month_Date'])
+        
         # --- A. SUMMARY KPI CARDS ---
         total_cost_exp = df_exp['Total Cost'].sum()
         total_gmv_exp = df_exp['GMV'].sum()
         total_orders_exp = df_exp['Order_Qty'].sum()
         avg_cost_pct_exp = (total_cost_exp / total_gmv_exp * 100) if total_gmv_exp > 0 else 0
-        avg_cpo_exp = df_exp['Cost_per_Order'].mean()
+        avg_cpo_exp = total_cost_exp / total_orders_exp if total_orders_exp > 0 else 0
         
         st.markdown("### 📊 Expansi Fulfillment Overview")
         
@@ -6236,29 +6247,39 @@ with tab10:
             'GMV': 'sum',
             'Order_Qty': 'sum',
             'BSA': 'mean',
-            '%Cost': 'mean',
             'Cost_per_Order': 'mean'
         }).reset_index()
         
         # Calculate derived metrics
         store_summary['Cost/GMV %'] = (store_summary['Total Cost'] / store_summary['GMV'] * 100)
+        store_summary['Avg CPO'] = store_summary['Total Cost'] / store_summary['Order_Qty']
         store_summary = store_summary.sort_values('Total Cost', ascending=False)
         
         # Styling
         styler_exp = store_summary.style\
-            .background_gradient(subset=['Cost/GMV %', '%Cost', 'Cost_per_Order'], cmap='RdYlGn_r')\
+            .background_gradient(subset=['Cost/GMV %', 'Avg CPO'], cmap='RdYlGn_r')\
             .background_gradient(subset=['BSA'], cmap='Greens')\
             .format({
                 'Total Cost': 'Rp {:,.0f}',
                 'GMV': 'Rp {:,.0f}',
                 'Order_Qty': '{:,.0f}',
                 'BSA': 'Rp {:,.0f}',
-                '%Cost': '{:.2f}%',
                 'Cost_per_Order': 'Rp {:,.0f}',
+                'Avg CPO': 'Rp {:,.0f}',
                 'Cost/GMV %': '{:.2f}%'
             })
         
         st.dataframe(styler_exp, use_container_width=True, height=400)
+        
+        # Tampilkan insight
+        best_store = store_summary.loc[store_summary['Cost/GMV %'].idxmin()]
+        worst_store = store_summary.loc[store_summary['Cost/GMV %'].idxmax()]
+        
+        col_ins1, col_ins2 = st.columns(2)
+        with col_ins1:
+            st.success(f"🌟 **Most Efficient:** {best_store['Store']} dengan Cost/GMV Ratio **{best_store['Cost/GMV %']:.2f}%**")
+        with col_ins2:
+            st.warning(f"⚠️ **Needs Attention:** {worst_store['Store']} dengan Cost/GMV Ratio **{worst_store['Cost/GMV %']:.2f}%**")
         
         # --- C. MONTHLY TREND PER STORE ---
         st.divider()
@@ -6269,13 +6290,15 @@ with tab10:
         selected_stores = st.multiselect(
             "Pilih Store:",
             options=stores,
-            default=stores[:3] if len(stores) > 3 else stores
+            default=stores[:3] if len(stores) > 3 else stores,
+            key="exp_store_selector"
         )
         
         if selected_stores:
             df_trend = df_exp[df_exp['Store'].isin(selected_stores)]
             
             # Cost % Trend Chart
+            st.markdown("#### 📉 % Cost Ratio Trend by Store")
             fig_cost_pct = go.Figure()
             
             for store in selected_stores:
@@ -6301,6 +6324,7 @@ with tab10:
             st.plotly_chart(fig_cost_pct, use_container_width=True)
             
             # CPO Trend Chart
+            st.markdown("#### 💰 Cost per Order (CPO) Trend by Store")
             fig_cpo = go.Figure()
             
             for store in selected_stores:
@@ -6329,31 +6353,38 @@ with tab10:
         st.subheader("🗺️ Store Performance Matrix")
         
         # Pivot table for heatmap
-        pivot_store = df_exp.pivot_table(
-            values='%Cost',
-            index='Store',
-            columns='Month',
-            aggfunc='mean'
-        ).fillna(0)
-        
-        fig_heat = go.Figure(data=go.Heatmap(
-            z=pivot_store.values,
-            x=list(pivot_store.columns),
-            y=list(pivot_store.index),
-            colorscale='RdYlGn_r',
-            text=[[f"{val:.2f}%" for val in row] for row in pivot_store.values],
-            texttemplate="%{text}",
-            textfont={"size": 10}
-        ))
-        
-        fig_heat.update_layout(
-            height=400,
-            title="% Cost Ratio Heatmap (Store vs Month)",
-            xaxis_title="Month",
-            yaxis_title="Store",
-            plot_bgcolor='white'
-        )
-        st.plotly_chart(fig_heat, use_container_width=True)
+        try:
+            pivot_store = df_exp.pivot_table(
+                values='%Cost',
+                index='Store',
+                columns='Month',
+                aggfunc='mean'
+            ).fillna(0)
+            
+            # Sort index alphabetically
+            pivot_store = pivot_store.sort_index()
+            
+            fig_heat = go.Figure(data=go.Heatmap(
+                z=pivot_store.values,
+                x=list(pivot_store.columns),
+                y=list(pivot_store.index),
+                colorscale='RdYlGn_r',
+                text=[[f"{val:.2f}%" for val in row] for row in pivot_store.values],
+                texttemplate="%{text}",
+                textfont={"size": 10}
+            ))
+            
+            fig_heat.update_layout(
+                height=450,
+                title="% Cost Ratio Heatmap (Store vs Month)",
+                xaxis_title="Month",
+                yaxis_title="Store",
+                plot_bgcolor='white',
+                yaxis=dict(autorange="reversed")
+            )
+            st.plotly_chart(fig_heat, use_container_width=True)
+        except Exception as e:
+            st.warning(f"⚠️ Gagal membuat heatmap: {str(e)}")
         
         # --- E. BSA vs %Cost SCATTER (Unit Economics) ---
         st.divider()
@@ -6366,8 +6397,8 @@ with tab10:
             size='Order_Qty',
             color='Store',
             text='Store',
-            size_max=40,
-            title="Basket Size vs Cost Efficiency",
+            size_max=50,
+            title="Basket Size vs Cost Efficiency by Store",
             labels={'BSA': 'Basket Size (Rp)', 'Cost/GMV %': '% Cost Ratio'}
         )
         
@@ -6377,18 +6408,22 @@ with tab10:
         )
         
         fig_scatter_exp.update_layout(
-            height=450,
+            height=500,
             plot_bgcolor='white',
-            xaxis=dict(title='Basket Size (Rp) →'),
-            yaxis=dict(title='% Cost Ratio →')
+            xaxis=dict(title='Basket Size (Rp) →', showgrid=True, gridcolor='rgba(0,0,0,0.05)'),
+            yaxis=dict(title='% Cost Ratio →', showgrid=True, gridcolor='rgba(0,0,0,0.05)')
         )
+        
+        # Tambahkan garis tren kasar
+        fig_scatter_exp.add_hline(y=avg_cost_pct_exp, line_dash="dash", line_color="gray", 
+                                   annotation_text=f"Avg: {avg_cost_pct_exp:.2f}%", annotation_position="right")
         
         st.plotly_chart(fig_scatter_exp, use_container_width=True)
         
+        st.caption("💡 **Insight:** Semakin ke kanan (BSA besar), idealnya %Cost Ratio semakin rendah (turun ke bawah). Store dengan BSA kecil cenderung memiliki cost ratio lebih tinggi.")
+    
     else:
-        st.info("ℹ️ Data 'Expansi_Fullfilment_Cost' belum tersedia.")
-    else:
-        st.warning("⚠️ Data 'BS_Fullfilment_Cost' belum tersedia.")
+        st.info("ℹ️ Data 'Expansi_Fullfilment_Cost' belum tersedia. Silakan tambahkan sheet dengan kolom: Store, Month, Total Cost, GMV, Order_Qty, BSA, %Cost, Cost_per_Order")
 
 # --- FOOTER ---
 st.divider()
