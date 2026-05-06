@@ -6281,10 +6281,9 @@ with tab10:
         with col_ins2:
             st.warning(f"⚠️ **Needs Attention:** {worst_store['Store']} dengan Cost/GMV Ratio **{worst_store['Cost/GMV %']:.2f}%**")
         
-        # --- C. MONTHLY TREND PER STORE (PLOTLY DUAL AXIS) ---
+        # --- C. MONTHLY TREND PER STORE ---
         st.divider()
-        st.subheader("📈 Monthly Trend by Store")
-        st.caption("Grafik gabungan: % Cost Ratio (Garis) vs Cost per Order/CPO (Bar)")
+        st.subheader("Monthly Trend by Store")
         
         # Store selector
         stores = sorted(df_exp['Store'].unique())
@@ -6302,134 +6301,56 @@ with tab10:
             color_palette = ['#66C2A5', '#FC8D62', '#8DA0CB', '#E78AC3', '#A6D854', '#FFD92F', '#E5C494', '#B3B3B3']
             store_colors = {store: color_palette[i % len(color_palette)] for i, store in enumerate(selected_stores)}
             
-            fig_combined = go.Figure()
+            # Chart 1: % Cost Ratio Trend by Store
+            st.markdown("#### % Cost Ratio Trend by Store")
+            fig_cost_pct = go.Figure()
             
             for store in selected_stores:
                 store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
-                store_color = store_colors[store]
-                
-                # Bar: Cost per Order (CPO)
-                fig_combined.add_trace(go.Bar(
-                    x=store_data['Month'],
-                    y=store_data['Cost_per_Order'],
-                    name=f"{store} - CPO",
-                    marker_color=store_color,
-                    opacity=0.35,
-                    yaxis='y1'
-                ))
-                
-                # Line: % Cost Ratio
-                fig_combined.add_trace(go.Scatter(
+                fig_cost_pct.add_trace(go.Scatter(
                     x=store_data['Month'],
                     y=store_data['%Cost'],
-                    name=f"{store} - %Cost",
-                    mode='lines+markers',
-                    line=dict(color=store_color, width=3),
-                    marker=dict(size=8, symbol='diamond', color=store_color,
-                               line=dict(width=1.5, color='white')),
-                    yaxis='y2'
+                    name=store,
+                    mode='lines+markers+text',
+                    text=[f"{x:.1f}%" for x in store_data['%Cost']],
+                    textposition='top center',
+                    textfont=dict(size=9)
                 ))
             
-            fig_combined.update_layout(
-                height=500,
-                title="Combined View: % Cost Ratio & CPO by Store",
-                xaxis=dict(title="Month", tickfont=dict(size=10)),
-                yaxis=dict(
-                    title="Cost per Order (Rp)",
-                    titlefont=dict(color='#6366F1'),
-                    tickfont=dict(color='#6366F1'),
-                    showgrid=True,
-                    gridcolor='rgba(0,0,0,0.05)'
-                ),
-                yaxis2=dict(
-                    title="% Cost Ratio",
-                    titlefont=dict(color='#EF4444'),
-                    tickfont=dict(color='#EF4444'),
-                    ticksuffix="%",
-                    overlaying='y',
-                    side='right',
-                    showgrid=False
-                ),
+            fig_cost_pct.update_layout(
+                height=400,
+                title="% Cost Ratio Trend by Store",
+                yaxis_title="% Cost",
+                yaxis=dict(ticksuffix="%"),
                 hovermode="x unified",
-                legend=dict(
-                    orientation="v",
-                    y=1.0,
-                    x=1.02,
-                    xanchor="left",
-                    font=dict(size=10)
-                ),
-                plot_bgcolor='white',
-                margin=dict(t=50, b=20, l=60, r=80),
-                barmode='group'
+                plot_bgcolor='white'
             )
+            st.plotly_chart(fig_cost_pct, use_container_width=True)
             
-            st.plotly_chart(fig_combined, use_container_width=True)
+            # Chart 2: CPO Trend by Store
+            st.markdown("#### Cost per Order (CPO) Trend by Store")
+            fig_cpo = go.Figure()
             
-            # --- SEPARATE VIEW PER STORE ---
-            with st.expander("Lihat Detail Per Store (Pisah)", expanded=False):
-                for store in selected_stores:
-                    store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
-                    store_color = store_colors[store]
-                    
-                    st.markdown(f"### {store}")
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        fig_pct = go.Figure()
-                        fig_pct.add_trace(go.Scatter(
-                            x=store_data['Month'],
-                            y=store_data['%Cost'],
-                            mode='lines+markers',
-                            line=dict(color=store_color, width=3),
-                            marker=dict(size=8, color=store_color),
-                            fill='tozeroy',
-                            fillcolor=store_color + '30'
-                        ))
-                        fig_pct.update_layout(
-                            height=280,
-                            title="% Cost Ratio",
-                            yaxis=dict(ticksuffix="%"),
-                            plot_bgcolor='white',
-                            margin=dict(t=40, b=10, l=10, r=10)
-                        )
-                        st.plotly_chart(fig_pct, use_container_width=True)
-                    
-                    with col2:
-                        fig_cpo = go.Figure()
-                        fig_cpo.add_trace(go.Bar(
-                            x=store_data['Month'],
-                            y=store_data['Cost_per_Order'],
-                            marker_color=store_color,
-                            text=[f"Rp {x:,.0f}" for x in store_data['Cost_per_Order']],
-                            textposition='outside',
-                            textfont=dict(size=10)
-                        ))
-                        fig_cpo.update_layout(
-                            height=280,
-                            title="Cost per Order",
-                            plot_bgcolor='white',
-                            margin=dict(t=40, b=10, l=10, r=10)
-                        )
-                        st.plotly_chart(fig_cpo, use_container_width=True)
-                    
-                    # Quick stats
-                    avg_pct = store_data['%Cost'].mean()
-                    avg_cpo = store_data['Cost_per_Order'].mean()
-                    total_cost = store_data['Total Cost'].sum()
-                    total_orders = store_data['Order_Qty'].sum()
-                    
-                    st.markdown(f"""
-                    <div style="background: #f8f9fa; border-radius: 8px; padding: 12px;">
-                        <b>Stats - {store}:</b><br>
-                        Avg %Cost: <b style="color:#EF4444;">{avg_pct:.2f}%</b> | 
-                        Avg CPO: <b style="color:#6366F1;">Rp {avg_cpo:,.0f}</b><br>
-                        Total Cost: <b>Rp {total_cost:,.0f}</b> | 
-                        Total Orders: <b>{total_orders:,.0f}</b>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    st.write("---")
+            for store in selected_stores:
+                store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
+                fig_cpo.add_trace(go.Bar(
+                    x=store_data['Month'],
+                    y=store_data['Cost_per_Order'],
+                    name=store,
+                    text=[f"Rp {x:,.0f}" for x in store_data['Cost_per_Order']],
+                    textposition='auto',
+                    textfont=dict(size=9)
+                ))
+            
+            fig_cpo.update_layout(
+                height=400,
+                title="Cost per Order (CPO) Trend by Store",
+                yaxis_title="Cost per Order (Rp)",
+                barmode='group',
+                hovermode="x unified",
+                plot_bgcolor='white'
+            )
+            st.plotly_chart(fig_cpo, use_container_width=True)
         
         # --- D. STORE COMPARISON HEATMAP ---
         st.divider()
