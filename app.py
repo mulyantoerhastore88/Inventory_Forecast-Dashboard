@@ -635,6 +635,44 @@ def load_and_process_data(_client):
         st.error(f"Error loading data: {str(e)}")
         return {}
 
+    # ==============================================================================
+    # 9. EXPANSI FULLFILMENT COST (NEW SHEET)
+    # ==============================================================================
+    try:
+        ws_exp = _client.open_by_url(gsheet_url).worksheet("Expansi_Fullfilment_Cost")
+        df_exp = pd.DataFrame(ws_exp.get_all_records())
+        
+        # Cleaning Headers
+        df_exp.columns = [c.strip() for c in df_exp.columns]
+        
+        # Helper untuk bersihkan angka
+        def clean_currency(x):
+            if isinstance(x, str):
+                return pd.to_numeric(x.replace(',', '').replace('%', ''), errors='coerce')
+            return x
+    
+        # List kolom angka yang perlu dibersihkan
+        numeric_cols_exp = ['Total Cost', 'GMV', 'Order_Qty', 'BSA', 'Cost_per_Order']
+        
+        for col in numeric_cols_exp:
+            if col in df_exp.columns:
+                df_exp[col] = df_exp[col].apply(clean_currency).fillna(0)
+        
+        # Parse %Cost
+        if '%Cost' in df_exp.columns:
+            df_exp['%Cost'] = df_exp['%Cost'].apply(clean_currency).fillna(0)
+        
+        # Parse Date (Jan 26, Feb 26, etc.)
+        df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], format='%b %y', errors='coerce')
+        df_exp = df_exp.sort_values(['Store', 'Month_Date'])
+        
+        data['expansi_fulfillment'] = df_exp
+        
+    except Exception as e:
+        st.warning(f"Gagal load Expansi_Fullfilment_Cost: {e}")
+        data['expansi_fulfillment'] = pd.DataFrame()
+        
+
 # --- FUNGSI BARU: LOAD DATA RESELLER LENGKAP ---
 @st.cache_data(ttl=300, show_spinner=False)
 def load_reseller_complete_data(_client):
@@ -1474,6 +1512,7 @@ with st.spinner('🔄 Loading and processing data from Google Sheets...'):
     df_forecast = all_data.get('forecast', pd.DataFrame())
     df_po = all_data.get('po', pd.DataFrame())
     df_stock = all_data.get('stock', pd.DataFrame())
+    df_expansi_fulfillment = all_data.get('expansi_fulfillment', pd.DataFrame())
     
     # Ganti rofo_onwards dengan ecomm_forecast (untuk Tab 7)
     df_ecomm_forecast = all_data.get('ecomm_forecast', pd.DataFrame())
@@ -6154,6 +6193,200 @@ with tab10:
             fig_ratio.update_layout(height=400, yaxis=dict(title="% Cost Ratio", range=[0, max(df_bs['%Cost'])*1.3]), plot_bgcolor='white', margin=dict(t=30, b=10, l=10, r=10))
             st.plotly_chart(fig_ratio, use_container_width=True)
 
+    # ==============================================================================
+    # 6. EXPANSI FULFILLMENT COST (NEW SECTION)
+    # ==============================================================================
+    st.divider()
+    st.subheader("🏪 Expansi Fulfillment Cost Analysis")
+    st.caption("Analisis biaya fulfillment per store/cabang (Shopee Area & PCA)")
+    
+    df_exp = all_data.get('expansi_fulfillment', pd.DataFrame())
+    
+    if not df_exp.empty:
+        
+        # --- A. SUMMARY KPI CARDS ---
+        total_cost_exp = df_exp['Total Cost'].sum()
+        total_gmv_exp = df_exp['GMV'].sum()
+        total_orders_exp = df_exp['Order_Qty'].sum()
+        avg_cost_pct_exp = (total_cost_exp / total_gmv_exp * 100) if total_gmv_exp > 0 else 0
+        avg_cpo_exp = df_exp['Cost_per_Order'].mean()
+        
+        st.markdown("### 📊 Expansi Fulfillment Overview")
+        
+        c1, c2, c3, c4, c5 = st.columns(5)
+        
+        with c1:
+            st.metric("Total Cost", f"Rp {total_cost_exp:,.0f}")
+        with c2:
+            st.metric("Total GMV", f"Rp {total_gmv_exp:,.0f}")
+        with c3:
+            st.metric("Total Orders", f"{total_orders_exp:,.0f}")
+        with c4:
+            st.metric("Avg %Cost", f"{avg_cost_pct_exp:.2f}%")
+        with c5:
+            st.metric("Avg CPO", f"Rp {avg_cpo_exp:,.0f}")
+        
+        # --- B. PER-STORE PERFORMANCE TABLE ---
+        st.divider()
+        st.subheader("📋 Per-Store Cost Breakdown")
+        
+        # Aggregate by Store
+        store_summary = df_exp.groupby('Store').agg({
+            'Total Cost': 'sum',
+            'GMV': 'sum',
+            'Order_Qty': 'sum',
+            'BSA': 'mean',
+            '%Cost': 'mean',
+            'Cost_per_Order': 'mean'
+        }).reset_index()
+        
+        # Calculate derived metrics
+        store_summary['Cost/GMV %'] = (store_summary['Total Cost'] / store_summary['GMV'] * 100)
+        store_summary = store_summary.sort_values('Total Cost', ascending=False)
+        
+        # Styling
+        styler_exp = store_summary.style\
+            .background_gradient(subset=['Cost/GMV %', '%Cost', 'Cost_per_Order'], cmap='RdYlGn_r')\
+            .background_gradient(subset=['BSA'], cmap='Greens')\
+            .format({
+                'Total Cost': 'Rp {:,.0f}',
+                'GMV': 'Rp {:,.0f}',
+                'Order_Qty': '{:,.0f}',
+                'BSA': 'Rp {:,.0f}',
+                '%Cost': '{:.2f}%',
+                'Cost_per_Order': 'Rp {:,.0f}',
+                'Cost/GMV %': '{:.2f}%'
+            })
+        
+        st.dataframe(styler_exp, use_container_width=True, height=400)
+        
+        # --- C. MONTHLY TREND PER STORE ---
+        st.divider()
+        st.subheader("📈 Monthly Trend by Store")
+        
+        # Store selector
+        stores = sorted(df_exp['Store'].unique())
+        selected_stores = st.multiselect(
+            "Pilih Store:",
+            options=stores,
+            default=stores[:3] if len(stores) > 3 else stores
+        )
+        
+        if selected_stores:
+            df_trend = df_exp[df_exp['Store'].isin(selected_stores)]
+            
+            # Cost % Trend Chart
+            fig_cost_pct = go.Figure()
+            
+            for store in selected_stores:
+                store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
+                fig_cost_pct.add_trace(go.Scatter(
+                    x=store_data['Month'],
+                    y=store_data['%Cost'],
+                    name=store,
+                    mode='lines+markers+text',
+                    text=[f"{x:.1f}%" for x in store_data['%Cost']],
+                    textposition='top center',
+                    textfont=dict(size=9)
+                ))
+            
+            fig_cost_pct.update_layout(
+                height=400,
+                title="% Cost Ratio Trend by Store",
+                yaxis_title="% Cost",
+                yaxis=dict(ticksuffix="%"),
+                hovermode="x unified",
+                plot_bgcolor='white'
+            )
+            st.plotly_chart(fig_cost_pct, use_container_width=True)
+            
+            # CPO Trend Chart
+            fig_cpo = go.Figure()
+            
+            for store in selected_stores:
+                store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
+                fig_cpo.add_trace(go.Bar(
+                    x=store_data['Month'],
+                    y=store_data['Cost_per_Order'],
+                    name=store,
+                    text=[f"Rp {x:,.0f}" for x in store_data['Cost_per_Order']],
+                    textposition='auto',
+                    textfont=dict(size=9)
+                ))
+            
+            fig_cpo.update_layout(
+                height=400,
+                title="Cost per Order (CPO) Trend by Store",
+                yaxis_title="Cost per Order (Rp)",
+                barmode='group',
+                hovermode="x unified",
+                plot_bgcolor='white'
+            )
+            st.plotly_chart(fig_cpo, use_container_width=True)
+        
+        # --- D. STORE COMPARISON HEATMAP ---
+        st.divider()
+        st.subheader("🗺️ Store Performance Matrix")
+        
+        # Pivot table for heatmap
+        pivot_store = df_exp.pivot_table(
+            values='%Cost',
+            index='Store',
+            columns='Month',
+            aggfunc='mean'
+        ).fillna(0)
+        
+        fig_heat = go.Figure(data=go.Heatmap(
+            z=pivot_store.values,
+            x=list(pivot_store.columns),
+            y=list(pivot_store.index),
+            colorscale='RdYlGn_r',
+            text=[[f"{val:.2f}%" for val in row] for row in pivot_store.values],
+            texttemplate="%{text}",
+            textfont={"size": 10}
+        ))
+        
+        fig_heat.update_layout(
+            height=400,
+            title="% Cost Ratio Heatmap (Store vs Month)",
+            xaxis_title="Month",
+            yaxis_title="Store",
+            plot_bgcolor='white'
+        )
+        st.plotly_chart(fig_heat, use_container_width=True)
+        
+        # --- E. BSA vs %Cost SCATTER (Unit Economics) ---
+        st.divider()
+        st.subheader("⚖️ Unit Economics: BSA vs %Cost by Store")
+        
+        fig_scatter_exp = px.scatter(
+            store_summary,
+            x='BSA',
+            y='Cost/GMV %',
+            size='Order_Qty',
+            color='Store',
+            text='Store',
+            size_max=40,
+            title="Basket Size vs Cost Efficiency",
+            labels={'BSA': 'Basket Size (Rp)', 'Cost/GMV %': '% Cost Ratio'}
+        )
+        
+        fig_scatter_exp.update_traces(
+            textposition='top center',
+            textfont=dict(size=10, weight='bold')
+        )
+        
+        fig_scatter_exp.update_layout(
+            height=450,
+            plot_bgcolor='white',
+            xaxis=dict(title='Basket Size (Rp) →'),
+            yaxis=dict(title='% Cost Ratio →')
+        )
+        
+        st.plotly_chart(fig_scatter_exp, use_container_width=True)
+        
+    else:
+        st.info("ℹ️ Data 'Expansi_Fullfilment_Cost' belum tersedia.")
     else:
         st.warning("⚠️ Data 'BS_Fullfilment_Cost' belum tersedia.")
 
