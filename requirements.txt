@@ -8,3 +8,4 @@ google-auth
 tenacity
 python-dateutil
 matplotlib
+streamlit-echarts
