@@ -6281,7 +6281,7 @@ with tab10:
         with col_ins2:
             st.warning(f"⚠️ **Needs Attention:** {worst_store['Store']} dengan Cost/GMV Ratio **{worst_store['Cost/GMV %']:.2f}%**")
         
-        # --- C. MONTHLY TREND PER STORE (DUAL AXIS ECHARTS) ---
+        # --- C. MONTHLY TREND PER STORE (DUAL AXIS ECHARTS - FIXED) ---
         st.divider()
         st.subheader("📈 Monthly Trend by Store")
         st.caption("Grafik gabungan: % Cost Ratio (Garis) vs Cost per Order/CPO (Bar)")
@@ -6313,15 +6313,17 @@ with tab10:
                 store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
                 store_color = store_colors[store]
                 
-                # Data untuk CPO (Bar) dan %Cost (Line)
+                # Data untuk CPO (Bar) dan %Cost (Line) - menggunakan nilai sederhana
                 cpo_data = []
                 pct_data = []
                 
                 for month in all_months:
                     row = store_data[store_data['Month'] == month]
                     if not row.empty:
-                        cpo_data.append(round(row['Cost_per_Order'].values[0], 0))
-                        pct_data.append(round(row['%Cost'].values[0], 2))
+                        cpo_val = round(row['Cost_per_Order'].values[0], 0)
+                        pct_val = round(row['%Cost'].values[0], 2)
+                        cpo_data.append(cpo_val)
+                        pct_data.append(pct_val)
                     else:
                         cpo_data.append(None)
                         pct_data.append(None)
@@ -6331,14 +6333,7 @@ with tab10:
                     "name": f"{store} - CPO",
                     "type": "bar",
                     "data": cpo_data,
-                    "itemStyle": {"color": store_color, "opacity": 0.35},
-                    "label": {
-                        "show": True,
-                        "position": "outside",
-                        "formatter": "Rp {c}",
-                        "fontSize": 9,
-                        "color": store_color
-                    },
+                    "itemStyle": {"color": store_color, "opacity": 0.4},
                     "barGap": "10%",
                     "yAxisIndex": 0
                 })
@@ -6348,28 +6343,27 @@ with tab10:
                 series_echarts.append({
                     "name": f"{store} - %Cost",
                     "type": "line",
+                    "yAxisIndex": 1,
                     "data": pct_data,
                     "smooth": True,
-                    "lineStyle": {"color": store_color, "width": 3},
                     "symbol": "diamond",
-                    "symbolSize": 10,
+                    "symbolSize": 8,
+                    "lineStyle": {"color": store_color, "width": 2.5},
                     "itemStyle": {"color": store_color, "borderColor": "#ffffff", "borderWidth": 2},
                     "label": {
                         "show": True,
                         "position": "top",
-                        "formatter": "{c}%",
                         "fontSize": 10,
                         "fontWeight": "bold",
-                        "color": store_color
-                    },
-                    "yAxisIndex": 1
+                        "color": store_color,
+                        "formatter": "{c}%"
+                    }
                 })
                 legend_data.append(f"{store} - %Cost")
             
             option_combined = {
                 "backgroundColor": "transparent",
                 "animation": True,
-                "animationDuration": 1000,
                 "tooltip": {
                     "trigger": "axis",
                     "axisPointer": {
@@ -6378,15 +6372,13 @@ with tab10:
                     },
                     "backgroundColor": "rgba(255,255,255,0.95)",
                     "borderColor": "#E5E7EB",
-                    "borderWidth": 1,
                     "textStyle": {"color": "#1F2937", "fontSize": 12}
                 },
                 "legend": {
                     "data": legend_data,
                     "type": "scroll",
                     "bottom": 0,
-                    "textStyle": {"fontSize": 10},
-                    "orient": "horizontal"
+                    "textStyle": {"fontSize": 10}
                 },
                 "grid": {
                     "left": "8%",
@@ -6403,35 +6395,24 @@ with tab10:
                         "fontWeight": "bold",
                         "color": "#4B5563"
                     },
-                    "axisLine": {"lineStyle": {"color": "#E5E7EB"}},
                     "axisTick": {"show": False}
                 },
                 "yAxis": [
                     {
                         "type": "value",
                         "name": "Cost per Order (Rp)",
-                        "nameTextStyle": {
-                            "color": "#6366F1",
-                            "fontWeight": "bold",
-                            "fontSize": 11
-                        },
+                        "nameTextStyle": {"color": "#6366F1", "fontWeight": "bold", "fontSize": 11},
                         "axisLabel": {
-                            "formatter": "Rp {value}",
+                            "formatter": "{value}",
                             "color": "#6366F1",
                             "fontSize": 10
                         },
-                        "splitLine": {
-                            "lineStyle": {"color": "rgba(0,0,0,0.05)", "type": "dashed"}
-                        }
+                        "splitLine": {"lineStyle": {"color": "rgba(0,0,0,0.05)", "type": "dashed"}}
                     },
                     {
                         "type": "value",
                         "name": "% Cost Ratio",
-                        "nameTextStyle": {
-                            "color": "#EF4444",
-                            "fontWeight": "bold",
-                            "fontSize": 11
-                        },
+                        "nameTextStyle": {"color": "#EF4444", "fontWeight": "bold", "fontSize": 11},
                         "axisLabel": {
                             "formatter": "{value}%",
                             "color": "#EF4444",
@@ -6443,129 +6424,141 @@ with tab10:
                 "series": series_echarts
             }
             
-            st_echarts(options=option_combined, height="500px", key="combined_trend_store")
+            try:
+                st_echarts(options=option_combined, height="500px", key="combined_trend_store")
+            except Exception as e:
+                st.warning(f"⚠️ Gagal render chart gabungan: {str(e)}")
+                # Fallback: tampilkan data per store dalam tabel
+                st.dataframe(df_trend[['Store', 'Month', 'Cost_per_Order', '%Cost']].sort_values(['Store', 'Month']), 
+                           use_container_width=True, height=400)
             
             # --- SEPARATE VIEW PER STORE (OPTIONAL EXPANDER) ---
             with st.expander("🔍 Lihat Detail Per Store (Pisah)", expanded=False):
-                store_tabs = st.tabs(selected_stores)
-                
-                for i, store in enumerate(selected_stores):
-                    with store_tabs[i]:
-                        store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
-                        store_color = store_colors[store]
+                for store in selected_stores:
+                    store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
+                    store_color = store_colors[store]
+                    
+                    st.markdown(f"### 🏪 {store}")
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        pct_data_vals = []
+                        for month in all_months:
+                            row = store_data[store_data['Month'] == month]
+                            if not row.empty:
+                                pct_data_vals.append(round(row['%Cost'].values[0], 2))
+                            else:
+                                pct_data_vals.append(None)
                         
-                        col1, col2 = st.columns(2)
-                        
-                        with col1:
-                            st.markdown(f"**% Cost Ratio - {store}**")
-                            
-                            pct_data_detail = []
-                            for month in all_months:
-                                row = store_data[store_data['Month'] == month]
-                                if not row.empty:
-                                    pct_data_detail.append({
-                                        "value": round(row['%Cost'].values[0], 2),
-                                        "label": {
-                                            "show": True,
-                                            "position": "top",
-                                            "formatter": f"{row['%Cost'].values[0]:.1f}%",
-                                            "fontSize": 10,
-                                            "fontWeight": "bold",
-                                            "color": store_color
-                                        }
-                                    })
-                                else:
-                                    pct_data_detail.append(None)
-                            
-                            option_pct = {
-                                "backgroundColor": "transparent",
-                                "xAxis": {
-                                    "type": "category",
-                                    "data": all_months,
-                                    "axisLabel": {"fontSize": 9, "rotate": 45}
+                        option_pct = {
+                            "backgroundColor": "transparent",
+                            "xAxis": {
+                                "type": "category",
+                                "data": all_months,
+                                "axisLabel": {"fontSize": 9, "rotate": 30}
+                            },
+                            "yAxis": {
+                                "type": "value",
+                                "name": "% Cost",
+                                "axisLabel": {"formatter": "{value}%", "fontSize": 10}
+                            },
+                            "grid": {"top": "15%", "bottom": "20%", "left": "15%", "right": "10%"},
+                            "series": [{
+                                "type": "line",
+                                "data": pct_data_vals,
+                                "smooth": True,
+                                "lineStyle": {"color": store_color, "width": 2.5},
+                                "symbol": "circle",
+                                "symbolSize": 6,
+                                "itemStyle": {"color": store_color},
+                                "areaStyle": {
+                                    "color": {
+                                        "type": "linear",
+                                        "x": 0, "y": 0, "x2": 0, "y2": 1,
+                                        "colorStops": [
+                                            {"offset": 0, "color": store_color + "40"},
+                                            {"offset": 1, "color": store_color + "05"}
+                                        ]
+                                    }
                                 },
-                                "yAxis": {
-                                    "type": "value",
-                                    "axisLabel": {"formatter": "{value}%", "fontSize": 10}
-                                },
-                                "grid": {"top": "15%", "bottom": "20%", "left": "15%", "right": "10%"},
-                                "series": [{
-                                    "type": "line",
-                                    "data": pct_data_detail,
-                                    "smooth": True,
-                                    "lineStyle": {"color": store_color, "width": 3},
-                                    "symbol": "circle",
-                                    "symbolSize": 8,
-                                    "itemStyle": {"color": store_color},
-                                    "areaStyle": {"color": {"type": "linear", "x": 0, "y": 0, "x2": 0, "y2": 1,
-                                        "colorStops": [{"offset": 0, "color": store_color + "30"}, {"offset": 1, "color": store_color + "05"}]}}
-                                }]
-                            }
-                            
-                            try:
-                                st_echarts(options=option_pct, height="300px", key=f"pct_{store}")
-                            except:
-                                st.metric("Avg %Cost", f"{store_data['%Cost'].mean():.2f}%")
+                                "label": {
+                                    "show": True,
+                                    "position": "top",
+                                    "fontSize": 9,
+                                    "color": store_color,
+                                    "formatter": "{c}%"
+                                }
+                            }]
+                        }
                         
-                        with col2:
-                            st.markdown(f"**Cost per Order (CPO) - {store}**")
-                            
-                            cpo_data_detail = []
-                            for month in all_months:
-                                row = store_data[store_data['Month'] == month]
-                                if not row.empty:
-                                    val = round(row['Cost_per_Order'].values[0], 0)
-                                    cpo_data_detail.append({
-                                        "value": val,
-                                        "label": {
-                                            "show": True,
-                                            "position": "top",
-                                            "formatter": f"Rp {val:,.0f}",
-                                            "fontSize": 9,
-                                            "fontWeight": "bold",
-                                            "color": store_color
-                                        }
-                                    })
-                                else:
-                                    cpo_data_detail.append(None)
-                            
-                            option_cpo = {
-                                "backgroundColor": "transparent",
-                                "xAxis": {
-                                    "type": "category",
-                                    "data": all_months,
-                                    "axisLabel": {"fontSize": 9, "rotate": 45}
-                                },
-                                "yAxis": {
-                                    "type": "value",
-                                    "axisLabel": {"formatter": "Rp {value}", "fontSize": 10}
-                                },
-                                "grid": {"top": "15%", "bottom": "20%", "left": "15%", "right": "10%"},
-                                "series": [{
-                                    "type": "bar",
-                                    "data": cpo_data_detail,
-                                    "itemStyle": {"color": store_color, "opacity": 0.7, "borderRadius": [4, 4, 0, 0]}
-                                }]
-                            }
-                            
-                            try:
-                                st_echarts(options=option_cpo, height="300px", key=f"cpo_{store}")
-                            except:
-                                st.metric("Avg CPO", f"Rp {store_data['Cost_per_Order'].mean():,.0f}")
+                        try:
+                            st_echarts(options=option_pct, height="280px", key=f"pct_{store.replace(' ', '_')}")
+                        except:
+                            st.metric("Avg %Cost", f"{store_data['%Cost'].mean():.2f}%")
+                    
+                    with col2:
+                        cpo_data_vals = []
+                        for month in all_months:
+                            row = store_data[store_data['Month'] == month]
+                            if not row.empty:
+                                cpo_data_vals.append(round(row['Cost_per_Order'].values[0], 0))
+                            else:
+                                cpo_data_vals.append(None)
                         
-                        # Quick stats
-                        avg_pct = store_data['%Cost'].mean()
-                        avg_cpo = store_data['Cost_per_Order'].mean()
-                        total_cost = store_data['Total Cost'].sum()
+                        option_cpo = {
+                            "backgroundColor": "transparent",
+                            "xAxis": {
+                                "type": "category",
+                                "data": all_months,
+                                "axisLabel": {"fontSize": 9, "rotate": 30}
+                            },
+                            "yAxis": {
+                                "type": "value",
+                                "name": "CPO (Rp)",
+                                "axisLabel": {"fontSize": 10}
+                            },
+                            "grid": {"top": "15%", "bottom": "20%", "left": "15%", "right": "10%"},
+                            "series": [{
+                                "type": "bar",
+                                "data": cpo_data_vals,
+                                "itemStyle": {
+                                    "color": store_color,
+                                    "opacity": 0.7,
+                                    "borderRadius": [4, 4, 0, 0]
+                                },
+                                "label": {
+                                    "show": True,
+                                    "position": "top",
+                                    "fontSize": 9,
+                                    "color": store_color,
+                                    "formatter": "{c}"
+                                }
+                            }]
+                        }
                         
-                        st.markdown(f"""
-                        <div style="background: #f8f9fa; border-radius: 8px; padding: 12px; margin-top: 10px;">
-                            <b>📋 Quick Stats - {store}:</b><br>
-                            • Avg %Cost: <b style="color:#EF4444;">{avg_pct:.2f}%</b> | 
-                            • Avg CPO: <b style="color:#6366F1;">Rp {avg_cpo:,.0f}</b> | 
-                            • Total Cost: <b>Rp {total_cost:,.0f}</b>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        try:
+                            st_echarts(options=option_cpo, height="280px", key=f"cpo_{store.replace(' ', '_')}")
+                        except:
+                            st.metric("Avg CPO", f"Rp {store_data['Cost_per_Order'].mean():,.0f}")
+                    
+                    # Quick stats
+                    avg_pct = store_data['%Cost'].mean()
+                    avg_cpo = store_data['Cost_per_Order'].mean()
+                    total_cost = store_data['Total Cost'].sum()
+                    total_orders = store_data['Order_Qty'].sum()
+                    
+                    st.markdown(f"""
+                    <div style="background: #f8f9fa; border-radius: 8px; padding: 12px;">
+                        <b>📋 Stats - {store}:</b><br>
+                        • Avg %Cost: <b style="color:#EF4444;">{avg_pct:.2f}%</b> | 
+                        • Avg CPO: <b style="color:#6366F1;">Rp {avg_cpo:,.0f}</b><br>
+                        • Total Cost: <b>Rp {total_cost:,.0f}</b> | 
+                        • Total Orders: <b>{total_orders:,.0f}</b>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.write("---")
         
         # --- D. STORE COMPARISON HEATMAP ---
         st.divider()
