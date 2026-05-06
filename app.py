@@ -11,6 +11,7 @@ from dateutil.relativedelta import relativedelta
 import warnings
 from tenacity import retry, stop_after_attempt, wait_exponential
 import math
+from streamlit_echarts import st_echarts
 warnings.filterwarnings('ignore')
 
 # --- Konfigurasi Halaman ---
