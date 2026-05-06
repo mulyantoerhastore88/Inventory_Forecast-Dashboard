@@ -1878,114 +1878,189 @@ if monthly_performance:
 
         st.write("") # Spacer
 
-        # --- B. ADVANCED COMBO CHART (Updated Logic) ---
-        from plotly.subplots import make_subplots
+        # --- B. ECHARTS COMBO CHART (Accuracy Trend + SKU Volume) ---
+        # Prepare data series
+        months_display = summary_df['Month_Display'].tolist()
+        accuracy_vals = summary_df['Accuracy'].tolist()
+        sku_vals = summary_df['Total_SKUs'].tolist()
+        mape_vals = summary_df['MAPE'].tolist()
 
-        # Create figure with secondary y-axis
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
-
-        # 1. Background Target Zones
-        fig.add_hrect(
-            y0=80, y1=110,
-            fillcolor="rgba(16, 185, 129, 0.08)", layer="below", line_width=0,
-            secondary_y=False
-        )
-        fig.add_hrect(
-            y0=70, y1=80,
-            fillcolor="rgba(245, 158, 11, 0.08)", layer="below", line_width=0,
-            secondary_y=False
-        )
-
-        # 2. Context Layer: Bar Chart for Total SKUs
-        fig.add_trace(
-            go.Bar(
-                x=summary_df['Month_Display'],
-                y=summary_df['Total_SKUs'],
-                name="Total SKUs",
-                marker_color='rgba(156, 163, 175, 0.15)',
-                hoverinfo='y',
-                showlegend=True,
-            ),
-            secondary_y=True,
-        )
-
-        # 3. Main Layer: Accuracy Line with 3-Color Logic
-        # Define colors list based on value
-        marker_colors = []
-        for val in summary_df['Accuracy']:
-            if val < 70:
-                marker_colors.append('#EF4444') # Merah
-            elif val < 80:
-                marker_colors.append('#F59E0B') # Kuning
+        # Build accuracy data with per-point color (green/yellow/red)
+        acc_series_data = []
+        for i, val in enumerate(accuracy_vals):
+            if val >= 80:
+                color = '#10B981'    # Emerald Green
+            elif val >= 70:
+                color = '#F59E0B'    # Amber Yellow
             else:
-                marker_colors.append('#10B981') # Hijau
+                color = '#EF4444'   # Red
+            acc_series_data.append({
+                "value": round(val, 1),
+                "itemStyle": {
+                    "color": color,
+                    "borderColor": "#ffffff",
+                    "borderWidth": 2
+                },
+                "label": {
+                    "show": True,
+                    "position": "top",
+                    "formatter": f"{val:.1f}%",
+                    "fontSize": 11,
+                    "fontWeight": "bold",
+                    "color": color
+                }
+            })
 
-        fig.add_trace(
-            go.Scatter(
-                x=summary_df['Month_Display'],
-                y=summary_df['Accuracy'],
-                name="Accuracy %",
-                mode='lines+markers+text', # <--- PERBAIKAN: Tambah 'text' agar label angka muncul
-                text=[f"{val:.1f}%" for val in summary_df['Accuracy']], # <--- Format angkanya
-                textposition="top center", # <--- Posisi angka tepat di atas titik
-                textfont=dict(size=11, color='#1F2937', weight='bold'), # <--- Gaya tulisan angka
-                line=dict(color='#6366F1', width=3, shape='spline', smoothing=1.3),
-                marker=dict(
-                    size=12,
-                    color=marker_colors,
-                    line=dict(width=2, color='white')
-                ),
-                hovertemplate=(
-                    "<b>%{x}</b><br>" +
-                    "Accuracy: <b>%{y:.1f}%</b><br>" +
-                    "MAPE: %{customdata[0]:.1f}%<br>" +
-                    "<extra></extra>"
-                ),
-                customdata=summary_df[['MAPE']]
-            ),
-            secondary_y=False,
-        )
+        # Build tooltip formatter (show accuracy + mape together)
+        tooltip_data = [
+            f"Accuracy: {a:.1f}%<br/>MAPE: {m:.1f}%<br/>SKUs: {s}"
+            for a, m, s in zip(accuracy_vals, mape_vals, sku_vals)
+        ]
 
-        # 4. Layout Styling
-        fig.update_layout(
-            height=480,
-            title=dict(
-                text='<b>📊 Accuracy Trend vs SKU Volume</b>',
-                font=dict(size=16, color='#374151'),
-                x=0, y=0.98
-            ),
-            plot_bgcolor='white',
-            paper_bgcolor='white',
-            hovermode='x unified',
-            # <--- PERBAIKAN: Posisi Legend dipindah ke BAWAH TENGAH agar rapi --->
-            legend=dict(
-                orientation="h", 
-                yanchor="top", 
-                y=-0.15, 
-                xanchor="center", 
-                x=0.5
-            ),
-            margin=dict(t=60, b=60, l=40, r=40) # Tambah margin bawah (b=60) agar legend tidak terpotong
-        )
+        echarts_option = {
+            "backgroundColor": "transparent",
+            "animation": True,
+            "animationDuration": 1200,
+            "animationEasing": "cubicOut",
+            "tooltip": {
+                "trigger": "axis",
+                "axisPointer": {
+                    "type": "cross",
+                    "crossStyle": {"color": "#999"}
+                },
+                "backgroundColor": "rgba(255,255,255,0.95)",
+                "borderColor": "#E5E7EB",
+                "borderWidth": 1,
+                "textStyle": {"color": "#1F2937", "fontSize": 13}
+            },
+            "legend": {
+                "data": ["Accuracy %", "Total SKUs"],
+                "bottom": 0,
+                "textStyle": {"fontSize": 12, "color": "#4B5563"}
+            },
+            "grid": {
+                "left": "4%",
+                "right": "6%",
+                "top": "12%",
+                "bottom": "12%",
+                "containLabel": True
+            },
+            "xAxis": {
+                "type": "category",
+                "data": months_display,
+                "axisLabel": {
+                    "fontWeight": "bold",
+                    "fontSize": 12,
+                    "color": "#4B5563"
+                },
+                "axisLine": {"lineStyle": {"color": "#E5E7EB"}},
+                "axisTick": {"show": False}
+            },
+            "yAxis": [
+                {
+                    "type": "value",
+                    "name": "Accuracy %",
+                    "nameTextStyle": {
+                        "color": "#6366F1",
+                        "fontWeight": "bold",
+                        "fontSize": 12
+                    },
+                    "min": 40,
+                    "max": 110,
+                    "interval": 10,
+                    "axisLabel": {
+                        "formatter": "{value}%",
+                        "color": "#6366F1",
+                        "fontWeight": "bold",
+                        "fontSize": 11
+                    },
+                    "splitLine": {
+                        "lineStyle": {"color": "rgba(0,0,0,0.05)", "type": "dashed"}
+                    }
+                },
+                {
+                    "type": "value",
+                    "name": "SKU Count",
+                    "nameTextStyle": {"color": "#9CA3AF", "fontSize": 11},
+                    "axisLabel": {"color": "#9CA3AF", "fontSize": 10},
+                    "splitLine": {"show": False},
+                    "axisLine": {"show": False},
+                    "axisTick": {"show": False}
+                }
+            ],
+            "series": [
+                {
+                    # Background bar — Total SKUs (secondary axis)
+                    "name": "Total SKUs",
+                    "type": "bar",
+                    "yAxisIndex": 1,
+                    "barMaxWidth": 35,
+                    "data": sku_vals,
+                    "itemStyle": {
+                        "color": "rgba(99,102,241,0.10)",
+                        "borderColor": "rgba(99,102,241,0.25)",
+                        "borderWidth": 1,
+                        "borderRadius": [4, 4, 0, 0]
+                    },
+                    "z": 1
+                },
+                {
+                    # Main accuracy line with colored markers
+                    "name": "Accuracy %",
+                    "type": "line",
+                    "yAxisIndex": 0,
+                    "data": acc_series_data,
+                    "smooth": True,
+                    "smoothMonotone": "x",
+                    "symbol": "circle",
+                    "symbolSize": 14,
+                    "lineStyle": {
+                        "color": "#6366F1",
+                        "width": 3
+                    },
+                    "areaStyle": {
+                        "color": {
+                            "type": "linear",
+                            "x": 0, "y": 0, "x2": 0, "y2": 1,
+                            "colorStops": [
+                                {"offset": 0, "color": "rgba(99,102,241,0.15)"},
+                                {"offset": 1, "color": "rgba(99,102,241,0.0)"}
+                            ]
+                        }
+                    },
+                    "markArea": {
+                        "silent": True,
+                        "itemStyle": {"color": "rgba(16,185,129,0.06)"},
+                        "data": [[{"yAxis": 80}, {"yAxis": 110}]]
+                    },
+                    "markLine": {
+                        "silent": True,
+                        "symbol": ["none", "none"],
+                        "data": [{"yAxis": 80}],
+                        "lineStyle": {
+                            "color": "#10B981",
+                            "type": "dashed",
+                            "width": 1.5
+                        },
+                        "label": {
+                            "show": True,
+                            "formatter": "Target 80%",
+                            "position": "insideEndTop",
+                            "color": "#10B981",
+                            "fontWeight": "bold",
+                            "fontSize": 11
+                        }
+                    },
+                    "z": 3
+                }
+            ]
+        }
 
-        fig.update_yaxes(
-            title="<b>Accuracy (%)</b>", 
-            range=[40, 115], # <--- PERBAIKAN: Limit dinaikkan ke 115 agar label teks di atas titik tidak nabrak atap grafik
-            gridcolor='rgba(0,0,0,0.05)',
-            secondary_y=False,
-            tickfont=dict(color='#4F46E5', weight='bold')
+        st_echarts(
+            options=echarts_option,
+            height="480px",
+            key="main_accuracy_trend_chart"
         )
-        
-        fig.update_yaxes(
-            title="Total SKUs", 
-            showgrid=False, 
-            visible=False,
-            secondary_y=True
-        )
-        
-        fig.update_xaxes(showgrid=False, tickfont=dict(weight='bold'))
-
-        st.plotly_chart(fig, use_container_width=True)
 
         # --- C. AUTO INSIGHT ---
         # Logic warna insight
@@ -2297,7 +2372,7 @@ if monthly_performance:
         last_month_name = selected_month_str
         # --- AKHIR SCRIPT FILTER BULAN ---
         
-        # Create tabs for Under and Over SKUs (Script Bapak di bawah ini tetap sama)
+        # Create tabs for Under and Over SKUs (Script di bawah ini tetap sama)
         eval_tab1, eval_tab2 = st.tabs([f"📉 UNDER Forecast ({last_month_name})", f"📈 OVER Forecast ({last_month_name})"])
         
         with eval_tab1:
@@ -2637,6 +2712,7 @@ if monthly_performance:
                 st.success(f"✅ No SKUs with OVER forecast in {last_month_name}")
 
 st.divider()
+
 
 # --- MAIN TABS ---
 tab1, tab2, tab5, tab3, tab4, tab10, tab7, tab9, tab8, tab6 = st.tabs([
