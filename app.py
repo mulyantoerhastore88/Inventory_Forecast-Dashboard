@@ -3473,16 +3473,15 @@ with tab3:
         risk_val = df_batch[risk_mask]['Total_Value'].sum()
         risk_pct = (risk_val / total_val * 100) if total_val > 0 else 0
 
-        # Helper: Format Uang Pintar Internal 
+        # Helper: Format Uang Pintar
         def format_currency_smart(value):
-            if pd.isna(value): return "Rp 0"
-            if value >= 1_000_000_000: return f"Rp {value/1e9:,.2f} M"
+            if value >= 1_000_000_000: return f"Rp {value/1e9:,.1f} M"
             elif value >= 1_000_000: return f"Rp {value/1e6:,.1f} Jt"
             else: return f"Rp {value:,.0f}"
 
         # Gunakan Master Function dari Sidebar
-        val_display = format_currency_smart(total_val)
-        risk_display = format_currency_smart(risk_val)
+        val_display = format_rupiah(total_val)
+        risk_display = format_rupiah(risk_val)
 
         # CSS Styles
         st.markdown("""
@@ -3512,7 +3511,7 @@ with tab3:
         
         with c1:
             # Soft Indigo
-            st.markdown(render_inv_card("Total Inventory Value (Est.)", val_display, f"{total_sku:,} Items", 
+            st.markdown(render_inv_card("Total Asset Value", val_display, f"{total_sku:,} Items", 
                 "linear-gradient(135deg, #7986cb 0%, #5c6bc0 100%)"), unsafe_allow_html=True)
         with c2:
             # Soft Teal
@@ -3566,7 +3565,7 @@ with tab3:
                 "linear-gradient(135deg, #fb8c00 0%, #ef6c00 100%)"), unsafe_allow_html=True)
 
         # ==============================================================================
-        # 3. STOCK COVER & OCCUPANCY DASHBOARD (FIXED RESPONSIVE GAUGE)
+        # 3. STOCK COVER & OCCUPANCY DASHBOARD (GAUGE DENGAN 1 DESIMAL)
         # ==============================================================================
         st.write("")
         st.subheader("⚡ Inventory Health & Warehouse Utilization")
@@ -3574,60 +3573,170 @@ with tab3:
         col_speed1, col_speed2 = st.columns(2)
         
         with col_speed1:
-            # Gauge: Global Coverage
-            fig_cover = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=global_cover_months, # <--- UBAH DI SINI
-                domain={'x': [0, 1], 'y': [0, 1]},
-                title={'text': "Global Inventory Coverage (Months)", 'font': {'size': 15, 'color': '#4B5563'}}, # <--- UBAH JUDULNYA
-                number={'font': {'size': 36, 'color': '#1F2937'}, 'valueformat': '.1f'}, # <--- Format 1 desimal
-                gauge={
-                    'axis': {'range': [0, 6], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                    'bar': {'color': "#7986cb", 'thickness': 0.3}, # Bar dipertipis sedikit
-                    'steps': [
-                        {'range': [0, 0.8], 'color': "#ef5350"},
-                        {'range': [0.8, 2.0], 'color': "#4db6ac"},
-                        {'range': [2.0, 6], 'color': "#ffb74d"}
-                    ],
-                    'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 2.0}
+            # Gauge: Global Coverage menggunakan ECharts
+            if ECHARTS_AVAILABLE:
+                # Format value dengan 1 desimal
+                cover_value = round(global_cover_months, 1)
+                
+                # Dynamic Color Logic untuk Stock Coverage
+                if cover_value < 0.8:
+                    c_color = '#EF4444' # Merah (Need Replenishment)
+                elif cover_value <= 2.0:
+                    c_color = '#10B981' # Hijau (Ideal/Aman)
+                else:
+                    c_color = '#F59E0B' # Kuning/Orange (Overstock)
+                
+                option_cover = {
+                    "series": [{
+                        "type": 'gauge',
+                        "center": ['50%', '55%'], # Digeser sedikit agar proporsional
+                        "radius": '85%',
+                        "startAngle": 210,
+                        "endAngle": -30,
+                        "min": 0,
+                        "max": 6,
+                        "splitNumber": 6,
+                        "progress": {
+                            "show": True,
+                            "width": 18,
+                            "roundCap": True,
+                            "itemStyle": {"color": c_color}
+                        },
+                        "axisLine": {
+                            "lineStyle": {
+                                "width": 18,
+                                "color": [
+                                    [0.133, 'rgba(239,68,68,0.2)'],
+                                    [0.333, 'rgba(16,185,129,0.2)'],
+                                    [1, 'rgba(245,158,11,0.2)']
+                                ]
+                            }
+                        },
+                        "pointer": {
+                            "itemStyle": {"color": c_color} # FIX: Warna jarum solid mengikuti status
+                        },
+                        "axisTick": {"show": False},
+                        "splitLine": {"show": False},
+                        "axisLabel": {
+                            "show": True, 
+                            "distance": -35,
+                            "fontSize": 11, 
+                            "fontWeight": 'bold', 
+                            "color": '#6B7280',
+                            "formatter": '{value}'  
+                        },
+                        "title": {
+                            "show": True,
+                            "offsetCenter": [0, '50%'], # Judul masuk ke dalam lingkaran
+                            "fontSize": 13,
+                            "fontWeight": 'bold',
+                            "color": '#6B7280'
+                        },
+                        "detail": {
+                            "show": True,
+                            "valueAnimation": True,
+                            "fontSize": 38,
+                            "fontWeight": '900',
+                            "offsetCenter": [0, '15%'], # Angka masuk ke dalam, pas di bawah jarum
+                            "color": '#1F2937',
+                            "formatter": '{value} Mo'
+                        },
+                        "data": [{
+                            "value": cover_value,
+                            "name": "Stock Coverage"
+                        }]
+                    }]
                 }
-            ))
-            fig_cover.update_layout(
-                height=280, # Tinggi diturunkan sedikit agar presisi
-                margin=dict(t=40, b=10, l=0, r=0), # KUNCI FIX: Margin Kiri (l) dan Kanan (r) dibuat 0
-                autosize=True
-            )
-            st.plotly_chart(fig_cover, use_container_width=True)
-            st.caption("Target: **0.8 - 2.0 Bulan**")
-
+                
+                try:
+                    st_echarts(options=option_cover, height="350px", key="gauge_cover_tab3")
+                except Exception as e:
+                    st.warning(f"⚠️ Gagal render gauge: {str(e)}")
+                    st.metric("Global Stock Cover", f"{global_cover_months:.1f} Mo")
+            else:
+                st.metric("Global Stock Cover", f"{global_cover_months:.1f} Mo")
+            
+            st.caption(f"📊 Current: **{global_cover_months:.1f} Bulan** | Target: **0.8 - 2.0 Bulan**")
+        
         with col_speed2:
             # Gauge: WH Occupancy
-            occ_color = "#4db6ac" if occupancy_pct < 80 else "#ef5350"
-            fig_occ = go.Figure(go.Indicator(
-                mode="gauge+number+delta",
-                value=occupancy_pct,
-                domain={'x': [0, 1], 'y': [0, 1]},
-                title={'text': "Warehouse Occupancy (%)", 'font': {'size': 15, 'color': '#4B5563'}},
-                number={'font': {'size': 36, 'color': '#1F2937'}}, # Kunci ukuran font
-                delta={'reference': 80, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}, 'font': {'size': 20}},
-                gauge={
-                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                    'bar': {'color': occ_color, 'thickness': 0.3},
-                    'steps': [
-                        {'range': [0, 60], 'color': "#e0f2f1"}, 
-                        {'range': [60, 85], 'color': "#fff3e0"}, 
-                        {'range': [85, 100], 'color': "#ffebee"}
-                    ],
-                    'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': 0.75, 'value': 85}
+            if ECHARTS_AVAILABLE:
+                occ_value = round(occupancy_pct, 1)
+                
+                # Logic warna: <80% Hijau, 80-90% Kuning, >90% Merah
+                occ_color = "#10B981" if occ_value < 80 else "#F59E0B" if occ_value < 90 else "#EF4444"
+                
+                option_occ = {
+                    "series": [{
+                        "type": 'gauge',
+                        "center": ['50%', '55%'],
+                        "radius": '85%',
+                        "startAngle": 210,
+                        "endAngle": -30,
+                        "min": 0,
+                        "max": 100,
+                        "splitNumber": 5,
+                        "progress": {
+                            "show": True,
+                            "width": 18,
+                            "roundCap": True,
+                            "itemStyle": {"color": occ_color}
+                        },
+                        "axisLine": {
+                            "lineStyle": {
+                                "width": 18,
+                                "color": [
+                                    [0.8, 'rgba(16,185,129,0.2)'], 
+                                    [0.9, 'rgba(245,158,11,0.2)'], 
+                                    [1, 'rgba(239,68,68,0.2)']
+                                ]
+                            }
+                        },
+                        "pointer": {
+                            "itemStyle": {"color": occ_color} # FIX: Warna jarum solid mengikuti status
+                        },
+                        "axisTick": {"show": False},
+                        "splitLine": {"show": False},
+                        "axisLabel": {
+                            "show": True, 
+                            "distance": -35,
+                            "fontSize": 11, 
+                            "fontWeight": 'bold', 
+                            "color": '#6B7280',
+                            "formatter": '{value}%'
+                        },
+                        "title": {
+                            "show": True,
+                            "offsetCenter": [0, '50%'], # Judul masuk ke dalam lingkaran
+                            "fontSize": 13,
+                            "fontWeight": 'bold',
+                            "color": '#6B7280'
+                        },
+                        "detail": {
+                            "show": True,
+                            "valueAnimation": True,
+                            "fontSize": 38,
+                            "fontWeight": '900',
+                            "offsetCenter": [0, '15%'], # Angka masuk ke dalam, pas di bawah jarum
+                            "color": '#1F2937',
+                            "formatter": '{value}%'
+                        },
+                        "data": [{
+                            "value": occ_value,
+                            "name": "Occupancy"
+                        }]
+                    }]
                 }
-            ))
-            fig_occ.update_layout(
-                height=280, # Tinggi diturunkan sedikit agar presisi
-                margin=dict(t=40, b=10, l=0, r=0), # KUNCI FIX: Margin Kiri (l) dan Kanan (r) dibuat 0
-                autosize=True
-            )
-            st.plotly_chart(fig_occ, use_container_width=True)
-            st.caption(f"Capacity Used: **{current_occupancy:,.0f}** / **{WH_CAPACITY:,.0f}** pcs")
+                
+                try:
+                    st_echarts(options=option_occ, height="350px", key="gauge_occ_tab3")
+                except Exception as e:
+                    st.warning(f"⚠️ Gagal render gauge: {str(e)}")
+                    st.metric("Warehouse Occupancy", f"{occupancy_pct:.1f}%")
+            else:
+                st.metric("Warehouse Occupancy", f"{occupancy_pct:.1f}%")
+            
+            st.caption(f"📦 Capacity Used: **{current_occupancy:,.0f}** / **{WH_CAPACITY:,.0f}** pcs ({occ_value:.1f}%)")
 
         # ==============================================================================
         # 3.5 ACTIONABLE INVENTORY ALERTS (ACTIVE & REGULAR SKU ONLY)
