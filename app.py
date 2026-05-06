@@ -6281,7 +6281,7 @@ with tab10:
         with col_ins2:
             st.warning(f"⚠️ **Needs Attention:** {worst_store['Store']} dengan Cost/GMV Ratio **{worst_store['Cost/GMV %']:.2f}%**")
         
-        # --- C. MONTHLY TREND PER STORE (DUAL AXIS ECHARTS - FIXED) ---
+        # --- C. MONTHLY TREND PER STORE (PLOTLY DUAL AXIS) ---
         st.divider()
         st.subheader("📈 Monthly Trend by Store")
         st.caption("Grafik gabungan: % Cost Ratio (Garis) vs Cost per Order/CPO (Bar)")
@@ -6298,141 +6298,79 @@ with tab10:
         if selected_stores:
             df_trend = df_exp[df_exp['Store'].isin(selected_stores)]
             
-            # Color palette untuk konsistensi antar store
+            # Color palette
             color_palette = ['#66C2A5', '#FC8D62', '#8DA0CB', '#E78AC3', '#A6D854', '#FFD92F', '#E5C494', '#B3B3B3']
             store_colors = {store: color_palette[i % len(color_palette)] for i, store in enumerate(selected_stores)}
             
-            # Get all unique months sorted
+            # Dapatkan semua bulan unik
             all_months = sorted(df_trend['Month'].unique())
             
-            # Build ECharts series
-            series_echarts = []
-            legend_data = []
+            fig_combined = go.Figure()
             
             for store in selected_stores:
                 store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
                 store_color = store_colors[store]
                 
-                # Data untuk CPO (Bar) dan %Cost (Line) - menggunakan nilai sederhana
-                cpo_data = []
-                pct_data = []
+                # Bar: Cost per Order (CPO)
+                fig_combined.add_trace(go.Bar(
+                    x=store_data['Month'],
+                    y=store_data['Cost_per_Order'],
+                    name=f"{store} - CPO",
+                    marker_color=store_color,
+                    opacity=0.35,
+                    legendgroup=store,
+                    yaxis='y1'
+                ))
                 
-                for month in all_months:
-                    row = store_data[store_data['Month'] == month]
-                    if not row.empty:
-                        cpo_val = round(row['Cost_per_Order'].values[0], 0)
-                        pct_val = round(row['%Cost'].values[0], 2)
-                        cpo_data.append(cpo_val)
-                        pct_data.append(pct_val)
-                    else:
-                        cpo_data.append(None)
-                        pct_data.append(None)
-                
-                # Bar series untuk CPO
-                series_echarts.append({
-                    "name": f"{store} - CPO",
-                    "type": "bar",
-                    "data": cpo_data,
-                    "itemStyle": {"color": store_color, "opacity": 0.4},
-                    "barGap": "10%",
-                    "yAxisIndex": 0
-                })
-                legend_data.append(f"{store} - CPO")
-                
-                # Line series untuk %Cost
-                series_echarts.append({
-                    "name": f"{store} - %Cost",
-                    "type": "line",
-                    "yAxisIndex": 1,
-                    "data": pct_data,
-                    "smooth": True,
-                    "symbol": "diamond",
-                    "symbolSize": 8,
-                    "lineStyle": {"color": store_color, "width": 2.5},
-                    "itemStyle": {"color": store_color, "borderColor": "#ffffff", "borderWidth": 2},
-                    "label": {
-                        "show": True,
-                        "position": "top",
-                        "fontSize": 10,
-                        "fontWeight": "bold",
-                        "color": store_color,
-                        "formatter": "{c}%"
-                    }
-                })
-                legend_data.append(f"{store} - %Cost")
+                # Line: % Cost Ratio
+                fig_combined.add_trace(go.Scatter(
+                    x=store_data['Month'],
+                    y=store_data['%Cost'],
+                    name=f"{store} - %Cost",
+                    mode='lines+markers',
+                    line=dict(color=store_color, width=3),
+                    marker=dict(size=8, symbol='diamond', color=store_color,
+                               line=dict(width=1.5, color='white')),
+                    legendgroup=store,
+                    yaxis='y2'
+                ))
             
-            option_combined = {
-                "backgroundColor": "transparent",
-                "animation": True,
-                "tooltip": {
-                    "trigger": "axis",
-                    "axisPointer": {
-                        "type": "cross",
-                        "crossStyle": {"color": "#999"}
-                    },
-                    "backgroundColor": "rgba(255,255,255,0.95)",
-                    "borderColor": "#E5E7EB",
-                    "textStyle": {"color": "#1F2937", "fontSize": 12}
-                },
-                "legend": {
-                    "data": legend_data,
-                    "type": "scroll",
-                    "bottom": 0,
-                    "textStyle": {"fontSize": 10}
-                },
-                "grid": {
-                    "left": "8%",
-                    "right": "8%",
-                    "top": "10%",
-                    "bottom": "15%",
-                    "containLabel": True
-                },
-                "xAxis": {
-                    "type": "category",
-                    "data": all_months,
-                    "axisLabel": {
-                        "fontSize": 11,
-                        "fontWeight": "bold",
-                        "color": "#4B5563"
-                    },
-                    "axisTick": {"show": False}
-                },
-                "yAxis": [
-                    {
-                        "type": "value",
-                        "name": "Cost per Order (Rp)",
-                        "nameTextStyle": {"color": "#6366F1", "fontWeight": "bold", "fontSize": 11},
-                        "axisLabel": {
-                            "formatter": "{value}",
-                            "color": "#6366F1",
-                            "fontSize": 10
-                        },
-                        "splitLine": {"lineStyle": {"color": "rgba(0,0,0,0.05)", "type": "dashed"}}
-                    },
-                    {
-                        "type": "value",
-                        "name": "% Cost Ratio",
-                        "nameTextStyle": {"color": "#EF4444", "fontWeight": "bold", "fontSize": 11},
-                        "axisLabel": {
-                            "formatter": "{value}%",
-                            "color": "#EF4444",
-                            "fontSize": 10
-                        },
-                        "splitLine": {"show": False}
-                    }
-                ],
-                "series": series_echarts
-            }
+            fig_combined.update_layout(
+                height=500,
+                title="📊 Combined View: % Cost Ratio & CPO by Store",
+                xaxis=dict(title="Month", tickfont=dict(size=10)),
+                yaxis=dict(
+                    title="Cost per Order (Rp)",
+                    titlefont=dict(color='#6366F1'),
+                    tickfont=dict(color='#6366F1'),
+                    showgrid=True,
+                    gridcolor='rgba(0,0,0,0.05)'
+                ),
+                yaxis2=dict(
+                    title="% Cost Ratio",
+                    titlefont=dict(color='#EF4444'),
+                    tickfont=dict(color='#EF4444'),
+                    ticksuffix="%",
+                    overlaying='y',
+                    side='right',
+                    showgrid=False
+                ),
+                hovermode="x unified",
+                legend=dict(
+                    orientation="v",
+                    y=1.0,
+                    x=1.02,
+                    xanchor="left",
+                    font=dict(size=10)
+                ),
+                plot_bgcolor='white',
+                margin=dict(t=50, b=20, l=60, r=80),
+                barmode='group'
+            )
             
-            try:
-                st_echarts(options=option_combined, height="500px", key="combined_trend_store")
-            except Exception as e:
-                st.warning(f"⚠️ Gagal render chart gabungan: {str(e)}")
-                # Fallback: tampilkan data per store dalam tabel
-                st.dataframe(df_trend[['Store', 'Month', 'Cost_per_Order', '%Cost']].sort_values(['Store', 'Month']), 
-                           use_container_width=True, height=400)
+            st.plotly_chart(fig_combined, use_container_width=True)
             
-            # --- SEPARATE VIEW PER STORE (OPTIONAL EXPANDER) ---
+            # --- SEPARATE VIEW PER STORE ---
             with st.expander("🔍 Lihat Detail Per Store (Pisah)", expanded=False):
                 for store in selected_stores:
                     store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
@@ -6443,104 +6381,42 @@ with tab10:
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        pct_data_vals = []
-                        for month in all_months:
-                            row = store_data[store_data['Month'] == month]
-                            if not row.empty:
-                                pct_data_vals.append(round(row['%Cost'].values[0], 2))
-                            else:
-                                pct_data_vals.append(None)
-                        
-                        option_pct = {
-                            "backgroundColor": "transparent",
-                            "xAxis": {
-                                "type": "category",
-                                "data": all_months,
-                                "axisLabel": {"fontSize": 9, "rotate": 30}
-                            },
-                            "yAxis": {
-                                "type": "value",
-                                "name": "% Cost",
-                                "axisLabel": {"formatter": "{value}%", "fontSize": 10}
-                            },
-                            "grid": {"top": "15%", "bottom": "20%", "left": "15%", "right": "10%"},
-                            "series": [{
-                                "type": "line",
-                                "data": pct_data_vals,
-                                "smooth": True,
-                                "lineStyle": {"color": store_color, "width": 2.5},
-                                "symbol": "circle",
-                                "symbolSize": 6,
-                                "itemStyle": {"color": store_color},
-                                "areaStyle": {
-                                    "color": {
-                                        "type": "linear",
-                                        "x": 0, "y": 0, "x2": 0, "y2": 1,
-                                        "colorStops": [
-                                            {"offset": 0, "color": store_color + "40"},
-                                            {"offset": 1, "color": store_color + "05"}
-                                        ]
-                                    }
-                                },
-                                "label": {
-                                    "show": True,
-                                    "position": "top",
-                                    "fontSize": 9,
-                                    "color": store_color,
-                                    "formatter": "{c}%"
-                                }
-                            }]
-                        }
-                        
-                        try:
-                            st_echarts(options=option_pct, height="280px", key=f"pct_{store.replace(' ', '_')}")
-                        except:
-                            st.metric("Avg %Cost", f"{store_data['%Cost'].mean():.2f}%")
+                        fig_pct = go.Figure()
+                        fig_pct.add_trace(go.Scatter(
+                            x=store_data['Month'],
+                            y=store_data['%Cost'],
+                            mode='lines+markers',
+                            line=dict(color=store_color, width=3),
+                            marker=dict(size=8, color=store_color),
+                            fill='tozeroy',
+                            fillcolor=store_color + '30'
+                        ))
+                        fig_pct.update_layout(
+                            height=280,
+                            title="% Cost Ratio",
+                            yaxis=dict(ticksuffix="%"),
+                            plot_bgcolor='white',
+                            margin=dict(t=40, b=10, l=10, r=10)
+                        )
+                        st.plotly_chart(fig_pct, use_container_width=True)
                     
                     with col2:
-                        cpo_data_vals = []
-                        for month in all_months:
-                            row = store_data[store_data['Month'] == month]
-                            if not row.empty:
-                                cpo_data_vals.append(round(row['Cost_per_Order'].values[0], 0))
-                            else:
-                                cpo_data_vals.append(None)
-                        
-                        option_cpo = {
-                            "backgroundColor": "transparent",
-                            "xAxis": {
-                                "type": "category",
-                                "data": all_months,
-                                "axisLabel": {"fontSize": 9, "rotate": 30}
-                            },
-                            "yAxis": {
-                                "type": "value",
-                                "name": "CPO (Rp)",
-                                "axisLabel": {"fontSize": 10}
-                            },
-                            "grid": {"top": "15%", "bottom": "20%", "left": "15%", "right": "10%"},
-                            "series": [{
-                                "type": "bar",
-                                "data": cpo_data_vals,
-                                "itemStyle": {
-                                    "color": store_color,
-                                    "opacity": 0.7,
-                                    "borderRadius": [4, 4, 0, 0]
-                                },
-                                "label": {
-                                    "show": True,
-                                    "position": "top",
-                                    "fontSize": 9,
-                                    "color": store_color,
-                                    "formatter": "{c}"
-                                }
-                            }]
-                        }
-                        
-                        try:
-                            st_echarts(options=option_cpo, height="280px", key=f"cpo_{store.replace(' ', '_')}")
-                        except:
-                            st.metric("Avg CPO", f"Rp {store_data['Cost_per_Order'].mean():,.0f}")
+                        fig_cpo = go.Figure()
+                        fig_cpo.add_trace(go.Bar(
+                            x=store_data['Month'],
+                            y=store_data['Cost_per_Order'],
+                            marker_color=store_color,
+                            text=[f"Rp {x:,.0f}" for x in store_data['Cost_per_Order']],
+                            textposition='outside',
+                            textfont=dict(size=10)
+                        ))
+                        fig_cpo.update_layout(
+                            height=280,
+                            title="Cost per Order",
+                            plot_bgcolor='white',
+                            margin=dict(t=40, b=10, l=10, r=10)
+                        )
+                        st.plotly_chart(fig_cpo, use_container_width=True)
                     
                     # Quick stats
                     avg_pct = store_data['%Cost'].mean()
