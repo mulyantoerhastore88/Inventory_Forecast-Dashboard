@@ -6302,9 +6302,6 @@ with tab10:
             color_palette = ['#66C2A5', '#FC8D62', '#8DA0CB', '#E78AC3', '#A6D854', '#FFD92F', '#E5C494', '#B3B3B3']
             store_colors = {store: color_palette[i % len(color_palette)] for i, store in enumerate(selected_stores)}
             
-            # Dapatkan semua bulan unik
-            all_months = sorted(df_trend['Month'].unique())
-            
             fig_combined = go.Figure()
             
             for store in selected_stores:
@@ -6318,7 +6315,6 @@ with tab10:
                     name=f"{store} - CPO",
                     marker_color=store_color,
                     opacity=0.35,
-                    legendgroup=store,
                     yaxis='y1'
                 ))
                 
@@ -6331,13 +6327,12 @@ with tab10:
                     line=dict(color=store_color, width=3),
                     marker=dict(size=8, symbol='diamond', color=store_color,
                                line=dict(width=1.5, color='white')),
-                    legendgroup=store,
                     yaxis='y2'
                 ))
             
             fig_combined.update_layout(
                 height=500,
-                title="📊 Combined View: % Cost Ratio & CPO by Store",
+                title="Combined View: % Cost Ratio & CPO by Store",
                 xaxis=dict(title="Month", tickfont=dict(size=10)),
                 yaxis=dict(
                     title="Cost per Order (Rp)",
@@ -6371,12 +6366,12 @@ with tab10:
             st.plotly_chart(fig_combined, use_container_width=True)
             
             # --- SEPARATE VIEW PER STORE ---
-            with st.expander("🔍 Lihat Detail Per Store (Pisah)", expanded=False):
+            with st.expander("Lihat Detail Per Store (Pisah)", expanded=False):
                 for store in selected_stores:
                     store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
                     store_color = store_colors[store]
                     
-                    st.markdown(f"### 🏪 {store}")
+                    st.markdown(f"### {store}")
                     
                     col1, col2 = st.columns(2)
                     
@@ -6426,11 +6421,11 @@ with tab10:
                     
                     st.markdown(f"""
                     <div style="background: #f8f9fa; border-radius: 8px; padding: 12px;">
-                        <b>📋 Stats - {store}:</b><br>
-                        • Avg %Cost: <b style="color:#EF4444;">{avg_pct:.2f}%</b> | 
-                        • Avg CPO: <b style="color:#6366F1;">Rp {avg_cpo:,.0f}</b><br>
-                        • Total Cost: <b>Rp {total_cost:,.0f}</b> | 
-                        • Total Orders: <b>{total_orders:,.0f}</b>
+                        <b>Stats - {store}:</b><br>
+                        Avg %Cost: <b style="color:#EF4444;">{avg_pct:.2f}%</b> | 
+                        Avg CPO: <b style="color:#6366F1;">Rp {avg_cpo:,.0f}</b><br>
+                        Total Cost: <b>Rp {total_cost:,.0f}</b> | 
+                        Total Orders: <b>{total_orders:,.0f}</b>
                     </div>
                     """, unsafe_allow_html=True)
                     
