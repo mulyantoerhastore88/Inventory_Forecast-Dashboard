@@ -12,6 +12,7 @@ import warnings
 from tenacity import retry, stop_after_attempt, wait_exponential
 import math
 from streamlit_echarts import st_echarts
+ECHARTS_AVAILABLE = True
 warnings.filterwarnings('ignore')
 
 # --- Konfigurasi Halaman ---
@@ -3480,8 +3481,8 @@ with tab3:
             else: return f"Rp {value:,.0f}"
 
         # Gunakan Master Function dari Sidebar
-        val_display = format_rupiah(total_val)
-        risk_display = format_rupiah(risk_val)
+        val_display = format_currency_smart(total_val)
+        risk_display = format_currency_smart(risk_val)
 
         # CSS Styles
         st.markdown("""
