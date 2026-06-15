@@ -440,30 +440,33 @@ def add_product_info_to_data(df, df_product):
     df_result = pd.merge(df_temp, product_info, on='SKU_ID', how='left')
     return df_result
 
-@st.cache_data(ttl=300, max_entries=3, show_spinner=False)
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=8))
+def _safe_read_sheet(spreadsheet, sheet_name, use_records=True):
+    ws = spreadsheet.worksheet(sheet_name)
+    if use_records:
+        return pd.DataFrame(ws.get_all_records())
+    else:
+        raw_data = ws.get_all_values()
+        if len(raw_data) < 2: return pd.DataFrame()
+        headers = [str(h).strip() for h in raw_data[0]]
+        df = pd.DataFrame(raw_data[1:], columns=headers)
+        df = df.loc[:, df.columns != '']
+        return df
+
+@st.cache_data(ttl=600, max_entries=3, show_spinner=False)
 def load_and_process_data(_client):
     """
     Load semua data termasuk sheet baru: BS_Fullfilment_Cost
     """
     
-    gsheet_url = st.secrets["gsheet_url"]  # Ambil dari secrets
+    gsheet_url = st.secrets["gsheet_url"]
     data = {}
 
-    # --- HELPER: Baca Sheet Manual ---
-    def safe_read_stock_sheet(sheet_name):
-        try:
-            ws = _client.open_by_url(gsheet_url).worksheet(sheet_name)
-            raw_data = ws.get_all_values()
-            if len(raw_data) < 2: return pd.DataFrame()
-            headers = [str(h).strip() for h in raw_data[0]]
-            df = pd.DataFrame(raw_data[1:], columns=headers)
-            df = df.loc[:, df.columns != '']
-            return df
-        except: return pd.DataFrame()
-
     try:
+        spreadsheet = _client.open_by_url(gsheet_url)
+
         # 1. PRODUCT MASTER
-        ws_prod = _client.open_by_url(gsheet_url).worksheet("Product_Master")
+        ws_prod = spreadsheet.worksheet("Product_Master")
         df_product = pd.DataFrame(ws_prod.get_all_records())
         df_product.columns = [col.strip().replace(' ', '_') for col in df_product.columns]
         
@@ -479,7 +482,7 @@ def load_and_process_data(_client):
         data['product_active'] = df_product_active
 
         # 2. SALES DATA
-        ws_sales = _client.open_by_url(gsheet_url).worksheet("Sales")
+        ws_sales = spreadsheet.worksheet("Sales")
         df_sales_raw = pd.DataFrame(ws_sales.get_all_records())
         df_sales_raw.columns = [col.strip() for col in df_sales_raw.columns]
         month_cols = [c for c in df_sales_raw.columns if any(m in c.upper() for m in ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
@@ -495,7 +498,7 @@ def load_and_process_data(_client):
             data['sales'] = df_sales_long.sort_values('Month')
 
         # 3. ROFO DATA
-        ws_rofo = _client.open_by_url(gsheet_url).worksheet("Rofo")
+        ws_rofo = spreadsheet.worksheet("Rofo")
         df_rofo_raw = pd.DataFrame(ws_rofo.get_all_records())
         df_rofo_raw.columns = [col.strip() for col in df_rofo_raw.columns]
         month_cols_rofo = [c for c in df_rofo_raw.columns if any(m in c.upper() for m in ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
@@ -511,7 +514,7 @@ def load_and_process_data(_client):
             data['forecast'] = df_rofo_long
 
         # 4. PO DATA
-        ws_po = _client.open_by_url(gsheet_url).worksheet("PO")
+        ws_po = spreadsheet.worksheet("PO")
         df_po_raw = pd.DataFrame(ws_po.get_all_records())
         df_po_raw.columns = [col.strip() for col in df_po_raw.columns]
         month_cols_po = [c for c in df_po_raw.columns if any(m in c.upper() for m in ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
@@ -524,7 +527,10 @@ def load_and_process_data(_client):
             data['po'] = df_po_long
 
         # 5. STOCK DATA
-        df_stock_raw = safe_read_stock_sheet("Stock_Onhand")
+        try:
+            df_stock_raw = _safe_read_sheet(spreadsheet, "Stock_Onhand", use_records=False)
+        except:
+            df_stock_raw = pd.DataFrame()
         if not df_stock_raw.empty:
             col_mapping = {
                 'SKU_ID': 'SKU_ID', 'Qty_Available': 'Stock_Qty', 'Product_Code': 'Anchanto_Code',
@@ -546,7 +552,7 @@ def load_and_process_data(_client):
 
         # 6. FORECAST 2026 ECOMM
         try:
-            ws_ecomm = _client.open_by_url(gsheet_url).worksheet("Forecast_2026_Ecomm")
+            ws_ecomm = spreadsheet.worksheet("Forecast_2026_Ecomm")
             df_ecomm_raw = pd.DataFrame(ws_ecomm.get_all_records())
             df_ecomm_raw.columns = [col.strip().replace(' ', '_') for col in df_ecomm_raw.columns]
             month_cols_ecomm = [c for c in df_ecomm_raw.columns if any(m in c.upper() for m in ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
@@ -560,7 +566,7 @@ def load_and_process_data(_client):
         
         # 7. FORECAST 2026 RESELLER
         try:
-            ws_reseller = _client.open_by_url(gsheet_url).worksheet("Forecast_2026_Reseller")
+            ws_reseller = spreadsheet.worksheet("Forecast_2026_Reseller")
             df_reseller_raw = pd.DataFrame(ws_reseller.get_all_records())
             df_reseller_raw.columns = [col.strip().replace(' ', '_') for col in df_reseller_raw.columns]
             all_month_cols_res = [c for c in df_reseller_raw.columns if any(m in c.upper() for m in ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'])]
@@ -596,7 +602,7 @@ def load_and_process_data(_client):
         # 8. BS FULLFILMENT COST (NEW SHEET)
         # ==============================================================================
         try:
-            ws_bs = _client.open_by_url(gsheet_url).worksheet("BS_Fullfilment_Cost")
+            ws_bs = spreadsheet.worksheet("BS_Fullfilment_Cost")
             df_bs = pd.DataFrame(ws_bs.get_all_records())
             
             # Cleaning Headers & Data
@@ -630,7 +636,7 @@ def load_and_process_data(_client):
         # 9. EXPANSI FULLFILMENT COST (NEW SHEET)
         # ==============================================================================
         try:
-            ws_exp = _client.open_by_url(gsheet_url).worksheet("Expansi_Fullfilment_Cost")
+            ws_exp = spreadsheet.worksheet("Expansi_Fullfilment_Cost")
             df_exp = pd.DataFrame(ws_exp.get_all_records())
             
             # Cleaning Headers
@@ -679,18 +685,19 @@ def load_and_process_data(_client):
         
 
 # --- FUNGSI BARU: LOAD DATA RESELLER LENGKAP ---
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def load_reseller_complete_data(_client):
     """
     Load SEMUA data reseller: forecast, sales, past rofo, past PO
     """
-    # Gunakan url yang sudah ada
-    gsheet_url = st.secrets["gsheet_url"]  # Ambil dari secrets
+    gsheet_url = st.secrets["gsheet_url"]
     reseller_data = {}
     
     try:
+        spreadsheet = _client.open_by_url(gsheet_url)
+
         # 1. FORECAST 2026 RESELLER
-        ws_fcst = _client.open_by_url(gsheet_url).worksheet("Forecast_2026_Reseller")
+        ws_fcst = spreadsheet.worksheet("Forecast_2026_Reseller")
         df_fcst_raw = pd.DataFrame(ws_fcst.get_all_records())
         df_fcst_raw.columns = [col.strip() for col in df_fcst_raw.columns]
         
@@ -719,7 +726,7 @@ def load_reseller_complete_data(_client):
         
         # 2. SALES RESELLER
         try:
-            ws_sales = _client.open_by_url(gsheet_url).worksheet("Sales_Reseller")
+            ws_sales = spreadsheet.worksheet("Sales_Reseller")
             df_sales_raw = pd.DataFrame(ws_sales.get_all_records())
             df_sales_raw.columns = [col.strip() for col in df_sales_raw.columns]
             
@@ -745,7 +752,7 @@ def load_reseller_complete_data(_client):
         
         # 3. PAST ROFO RESELLER
         try:
-            ws_rofo = _client.open_by_url(gsheet_url).worksheet("Past_Rofo_Reseller")
+            ws_rofo = spreadsheet.worksheet("Past_Rofo_Reseller")
             df_rofo_raw = pd.DataFrame(ws_rofo.get_all_records())
             df_rofo_raw.columns = [col.strip() for col in df_rofo_raw.columns]
             
@@ -770,7 +777,7 @@ def load_reseller_complete_data(_client):
         
         # 4. PAST PO RESELLER
         try:
-            ws_po = _client.open_by_url(gsheet_url).worksheet("Past_PO_Reseller")
+            ws_po = spreadsheet.worksheet("Past_PO_Reseller")
             df_po_raw = pd.DataFrame(ws_po.get_all_records())
             df_po_raw.columns = [col.strip() for col in df_po_raw.columns]
             
@@ -803,7 +810,7 @@ def load_reseller_complete_data(_client):
 # ---                FINANCIAL FUNCTIONS                    ---
 # --- ====================================================== ---
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def calculate_financial_metrics_all(df_sales, df_product):
     """Calculate all financial metrics from sales data"""
     
@@ -850,7 +857,7 @@ def calculate_financial_metrics_all(df_sales, df_product):
         st.error(f"Financial metrics calculation error: {str(e)}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def calculate_inventory_financial(df_stock, df_product):
     """Calculate inventory financial value"""
     
@@ -886,7 +893,7 @@ def calculate_inventory_financial(df_stock, df_product):
         st.error(f"Inventory financial calculation error: {str(e)}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def calculate_seasonality(df_financial):
     """Calculate seasonal patterns from financial data"""
     
@@ -1107,7 +1114,7 @@ def get_last_3_months_performance(monthly_performance):
     
     return last_3_data
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=600)
 def calculate_inventory_metrics_with_3month_avg(df_stock, df_sales, df_product):
     """Calculate inventory metrics using 3-month average sales (FIXED: AGGREGATE STOCK FIRST)"""
     
@@ -6206,42 +6213,103 @@ with tab10:
     # ==============================================================================
     st.divider()
     st.subheader("🏪 Expansi Fulfillment Cost Analysis")
-    st.caption("Analisis biaya fulfillment per store/cabang (Shopee Area & PCA)")
-    
+    st.caption("Deep-dive analisis biaya fulfillment per store/cabang — Efficiency Grading, Cost Contribution, Growth Scaling, dan Actionable Recommendations.")
+
     df_exp = all_data.get('expansi_fulfillment', pd.DataFrame())
-    
+
     if not df_exp.empty:
-        
-        # Urutkan data
+
         df_exp = df_exp.sort_values(['Store', 'Month_Date'])
-        
-        # --- A. SUMMARY KPI CARDS ---
+
         total_cost_exp = df_exp['Total Cost'].sum()
         total_gmv_exp = df_exp['GMV'].sum()
         total_orders_exp = df_exp['Order_Qty'].sum()
         avg_cost_pct_exp = (total_cost_exp / total_gmv_exp * 100) if total_gmv_exp > 0 else 0
         avg_cpo_exp = total_cost_exp / total_orders_exp if total_orders_exp > 0 else 0
-        
+        num_stores = df_exp['Store'].nunique()
+
+        sorted_months_exp = sorted(df_exp['Month_Date'].dropna().unique())
+        has_prev = len(sorted_months_exp) >= 2
+        if has_prev:
+            last_m = sorted_months_exp[-1]
+            prev_m = sorted_months_exp[-2]
+            df_last = df_exp[df_exp['Month_Date'] == last_m]
+            df_prev = df_exp[df_exp['Month_Date'] == prev_m]
+            cost_last = df_last['Total Cost'].sum()
+            cost_prev = df_prev['Total Cost'].sum()
+            gmv_last = df_last['GMV'].sum()
+            gmv_prev = df_prev['GMV'].sum()
+            orders_last = df_last['Order_Qty'].sum()
+            orders_prev = df_prev['Order_Qty'].sum()
+            pct_last = (cost_last / gmv_last * 100) if gmv_last > 0 else 0
+            pct_prev = (cost_prev / gmv_prev * 100) if gmv_prev > 0 else 0
+            cpo_last = cost_last / orders_last if orders_last > 0 else 0
+            cpo_prev = cost_prev / orders_prev if orders_prev > 0 else 0
+            d_cost = ((cost_last - cost_prev) / cost_prev * 100) if cost_prev > 0 else 0
+            d_gmv = ((gmv_last - gmv_prev) / gmv_prev * 100) if gmv_prev > 0 else 0
+            d_orders = ((orders_last - orders_prev) / orders_prev * 100) if orders_prev > 0 else 0
+            d_pct = pct_last - pct_prev
+            d_cpo = ((cpo_last - cpo_prev) / cpo_prev * 100) if cpo_prev > 0 else 0
+        else:
+            d_cost = d_gmv = d_orders = d_pct = d_cpo = 0
+            cost_last = total_cost_exp
+            gmv_last = total_gmv_exp
+            orders_last = total_orders_exp
+            pct_last = avg_cost_pct_exp
+            cpo_last = avg_cpo_exp
+
+        def _fmt_rp_short(v):
+            if abs(v) >= 1e9: return f"Rp {v/1e9:,.1f} M"
+            if abs(v) >= 1e6: return f"Rp {v/1e6:,.1f} Jt"
+            return f"Rp {v:,.0f}"
+
         st.markdown("### 📊 Expansi Fulfillment Overview")
-        
-        c1, c2, c3, c4, c5 = st.columns(5)
-        
-        with c1:
-            st.metric("Total Cost", f"Rp {total_cost_exp:,.0f}")
-        with c2:
-            st.metric("Total GMV", f"Rp {total_gmv_exp:,.0f}")
-        with c3:
-            st.metric("Total Orders", f"{total_orders_exp:,.0f}")
-        with c4:
-            st.metric("Avg %Cost", f"{avg_cost_pct_exp:.2f}%")
-        with c5:
-            st.metric("Avg CPO", f"Rp {avg_cpo_exp:,.0f}")
-        
-        # --- B. PER-STORE PERFORMANCE TABLE ---
+
+        st.markdown("""
+<style>
+.exp-card {
+border-radius: 14px; padding: 1.2rem; color: white;
+box-shadow: 0 4px 12px rgba(0,0,0,0.06); position: relative;
+overflow: hidden; transition: transform 0.3s ease;
+}
+.exp-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(0,0,0,0.12); }
+.exp-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.92; margin-bottom: 5px; }
+.exp-val { font-size: 1.6rem; font-weight: 800; margin-bottom: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.exp-sub { font-size: 0.82rem; font-weight: 500; opacity: 0.95; display:flex; align-items:center; gap:5px; }
+.exp-pill { background: rgba(255,255,255,0.22); padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; backdrop-filter: blur(4px); }
+</style>
+""", unsafe_allow_html=True)
+
+        def _exp_card(title, val, delta_str, sub_text, gradient):
+            return f"""
+<div class="exp-card" style="background:{gradient};">
+<div class="exp-label">{title}</div>
+<div class="exp-val">{val}</div>
+<div class="exp-sub"><span class="exp-pill">{delta_str}</span> {sub_text}</div>
+</div>"""
+
+        ec1, ec2, ec3, ec4, ec5 = st.columns(5)
+        with ec1:
+            arrow_c = "▲" if d_cost > 0 else "▼" if d_cost < 0 else "—"
+            st.markdown(_exp_card("Total Cost", _fmt_rp_short(total_cost_exp), f"{arrow_c} {abs(d_cost):.1f}%", "MoM Change", "linear-gradient(135deg, #ef5350 0%, #c62828 100%)"), unsafe_allow_html=True)
+        with ec2:
+            arrow_g = "▲" if d_gmv > 0 else "▼" if d_gmv < 0 else "—"
+            st.markdown(_exp_card("Total GMV", _fmt_rp_short(total_gmv_exp), f"{arrow_g} {abs(d_gmv):.1f}%", "MoM Change", "linear-gradient(135deg, #42a5f5 0%, #1565c0 100%)"), unsafe_allow_html=True)
+        with ec3:
+            arrow_o = "▲" if d_orders > 0 else "▼" if d_orders < 0 else "—"
+            st.markdown(_exp_card("Total Orders", f"{total_orders_exp:,.0f}", f"{arrow_o} {abs(d_orders):.1f}%", "MoM Change", "linear-gradient(135deg, #7e57c2 0%, #4527a0 100%)"), unsafe_allow_html=True)
+        with ec4:
+            arrow_p = "▲" if d_pct > 0 else "▼" if d_pct < 0 else "—"
+            pct_col = "linear-gradient(135deg, #66bb6a 0%, #2e7d32 100%)" if pct_last < avg_cost_pct_exp else "linear-gradient(135deg, #ffa726 0%, #e65100 100%)"
+            st.markdown(_exp_card("Avg %Cost", f"{avg_cost_pct_exp:.2f}%", f"{arrow_p} {abs(d_pct):.2f}pp", "MoM Change", pct_col), unsafe_allow_html=True)
+        with ec5:
+            arrow_cp = "▲" if d_cpo > 0 else "▼" if d_cpo < 0 else "—"
+            st.markdown(_exp_card("Avg CPO", f"Rp {avg_cpo_exp:,.0f}", f"{arrow_cp} {abs(d_cpo):.1f}%", "MoM Change", "linear-gradient(135deg, #26a69a 0%, #00695c 100%)"), unsafe_allow_html=True)
+
         st.divider()
-        st.subheader("📋 Per-Store Cost Breakdown")
-        
-        # Aggregate by Store
+        st.subheader("🏆 Store Efficiency Scorecard")
+        st.caption("Grading otomatis setiap store berdasarkan %Cost Ratio — **A** (Excellent) hingga **D** (Critical).")
+
         store_summary = df_exp.groupby('Store').agg({
             'Total Cost': 'sum',
             'GMV': 'sum',
@@ -6249,183 +6317,258 @@ with tab10:
             'BSA': 'mean',
             'Cost_per_Order': 'mean'
         }).reset_index()
-        
-        # Calculate derived metrics
-        store_summary['Cost/GMV %'] = (store_summary['Total Cost'] / store_summary['GMV'] * 100)
-        store_summary['Avg CPO'] = store_summary['Total Cost'] / store_summary['Order_Qty']
-        store_summary = store_summary.sort_values('Total Cost', ascending=False)
-        
-        # Styling
-        styler_exp = store_summary.style\
+        store_summary['Cost/GMV %'] = np.where(store_summary['GMV'] > 0, store_summary['Total Cost'] / store_summary['GMV'] * 100, 0)
+        store_summary['Avg CPO'] = np.where(store_summary['Order_Qty'] > 0, store_summary['Total Cost'] / store_summary['Order_Qty'], 0)
+        store_summary['Cost_Share %'] = (store_summary['Total Cost'] / total_cost_exp * 100) if total_cost_exp > 0 else 0
+
+        if has_prev:
+            prev_store = df_prev.groupby('Store').agg({'Total Cost': 'sum', 'GMV': 'sum'}).reset_index()
+            prev_store['Prev_%Cost'] = np.where(prev_store['GMV'] > 0, prev_store['Total Cost'] / prev_store['GMV'] * 100, 0)
+            last_store = df_last.groupby('Store').agg({'Total Cost': 'sum', 'GMV': 'sum'}).reset_index()
+            last_store['Last_%Cost'] = np.where(last_store['GMV'] > 0, last_store['Total Cost'] / last_store['GMV'] * 100, 0)
+            mom_store = pd.merge(last_store[['Store', 'Last_%Cost']], prev_store[['Store', 'Prev_%Cost']], on='Store', how='outer').fillna(0)
+            mom_store['Trend'] = mom_store['Last_%Cost'] - mom_store['Prev_%Cost']
+            store_summary = pd.merge(store_summary, mom_store[['Store', 'Trend']], on='Store', how='left')
+            store_summary['Trend'] = store_summary['Trend'].fillna(0)
+        else:
+            store_summary['Trend'] = 0
+
+        def _grade(pct):
+            if pct <= 3: return 'A'
+            if pct <= 5: return 'B'
+            if pct <= 8: return 'C'
+            return 'D'
+        store_summary['Grade'] = store_summary['Cost/GMV %'].apply(_grade)
+        store_summary = store_summary.sort_values('Cost/GMV %', ascending=True)
+        store_summary['Rank'] = range(1, len(store_summary) + 1)
+
+        grade_colors = {'A': '#10B981', 'B': '#3B82F6', 'C': '#F59E0B', 'D': '#EF4444'}
+        grade_labels = {'A': 'Excellent', 'B': 'Good', 'C': 'Warning', 'D': 'Critical'}
+
+        cols_per_row = min(len(store_summary), 4)
+        for row_start in range(0, len(store_summary), cols_per_row):
+            row_slice = store_summary.iloc[row_start:row_start + cols_per_row]
+            cols_sc = st.columns(cols_per_row)
+            for idx_sc, (_, row_s) in enumerate(row_slice.iterrows()):
+                g = row_s['Grade']
+                gc = grade_colors.get(g, '#9CA3AF')
+                trend_arrow = "▲" if row_s['Trend'] > 0 else "▼" if row_s['Trend'] < 0 else "—"
+                trend_col_txt = "#EF4444" if row_s['Trend'] > 0 else "#10B981" if row_s['Trend'] < 0 else "#9CA3AF"
+                with cols_sc[idx_sc]:
+                    st.markdown(f"""
+<div style="background:white; border-radius:14px; padding:1.2rem; box-shadow:0 4px 15px rgba(0,0,0,0.06); border-left:5px solid {gc}; margin-bottom:0.5rem;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+<span style="font-size:0.8rem; font-weight:700; color:#6B7280; text-transform:uppercase;">#{int(row_s['Rank'])} {row_s['Store']}</span>
+<span style="background:{gc}; color:white; padding:3px 10px; border-radius:6px; font-size:0.85rem; font-weight:800;">{g}</span>
+</div>
+<div style="font-size:1.5rem; font-weight:800; color:#1F2937; margin-bottom:4px;">{row_s['Cost/GMV %']:.2f}%</div>
+<div style="font-size:0.8rem; color:#6B7280;">Cost/GMV Ratio | <span style="color:{gc}; font-weight:700;">{grade_labels[g]}</span></div>
+<div style="display:flex; justify-content:space-between; margin-top:10px; font-size:0.78rem; color:#9CA3AF;">
+<span>CPO: Rp {row_s['Avg CPO']:,.0f}</span>
+<span>BSA: Rp {row_s['BSA']:,.0f}</span>
+<span style="color:{trend_col_txt}; font-weight:700;">{trend_arrow} {abs(row_s['Trend']):.2f}pp</span>
+</div>
+</div>
+""", unsafe_allow_html=True)
+
+        st.divider()
+        col_tree, col_growth = st.columns([1, 1])
+
+        with col_tree:
+            st.subheader("🧩 Cost Contribution by Store")
+            st.caption("Proporsi kontribusi biaya masing-masing store terhadap total cost Expansi.")
+            fig_treemap = px.treemap(
+                store_summary,
+                path=['Store'],
+                values='Total Cost',
+                color='Cost/GMV %',
+                color_continuous_scale='RdYlGn_r',
+                custom_data=['Cost/GMV %', 'Order_Qty', 'Cost_Share %']
+            )
+            fig_treemap.update_traces(
+                texttemplate="<b>%{label}</b><br>%{customdata[2]:.1f}% share<br>Cost/GMV: %{customdata[0]:.2f}%",
+                hovertemplate="<b>%{label}</b><br>Total Cost: Rp %{value:,.0f}<br>Cost/GMV: %{customdata[0]:.2f}%<br>Orders: %{customdata[1]:,.0f}<extra></extra>"
+            )
+            fig_treemap.update_layout(height=420, margin=dict(t=10, l=5, r=5, b=10), coloraxis_colorbar=dict(title="%Cost"))
+            st.plotly_chart(fig_treemap, use_container_width=True)
+
+        with col_growth:
+            st.subheader("📈 GMV vs Cost Growth Scaling")
+            st.caption("Apakah pertumbuhan biaya selaras atau lebih cepat dari pertumbuhan revenue?")
+
+            monthly_agg = df_exp.groupby('Month_Date').agg({'Total Cost': 'sum', 'GMV': 'sum', 'Order_Qty': 'sum'}).reset_index().sort_values('Month_Date')
+            if len(monthly_agg) >= 2:
+                base_cost = monthly_agg['Total Cost'].iloc[0]
+                base_gmv = monthly_agg['GMV'].iloc[0]
+                monthly_agg['Cost_Index'] = np.where(base_cost > 0, monthly_agg['Total Cost'] / base_cost * 100, 100)
+                monthly_agg['GMV_Index'] = np.where(base_gmv > 0, monthly_agg['GMV'] / base_gmv * 100, 100)
+                monthly_agg['Month_Lbl'] = monthly_agg['Month_Date'].dt.strftime('%b-%y')
+
+                fig_idx = go.Figure()
+                fig_idx.add_trace(go.Scatter(x=monthly_agg['Month_Lbl'], y=monthly_agg['GMV_Index'], name='GMV Growth Index', mode='lines+markers+text', text=[f"{x:.0f}" for x in monthly_agg['GMV_Index']], textposition='top center', textfont=dict(size=10, color='#1565C0', weight='bold'), line=dict(color='#42A5F5', width=3), marker=dict(size=8)))
+                fig_idx.add_trace(go.Scatter(x=monthly_agg['Month_Lbl'], y=monthly_agg['Cost_Index'], name='Cost Growth Index', mode='lines+markers+text', text=[f"{x:.0f}" for x in monthly_agg['Cost_Index']], textposition='bottom center', textfont=dict(size=10, color='#C62828', weight='bold'), line=dict(color='#EF5350', width=3, dash='dot'), marker=dict(size=8)))
+                fig_idx.add_hline(y=100, line_dash="dash", line_color="#9CA3AF", annotation_text="Baseline (Month 1)")
+                fig_idx.update_layout(height=420, plot_bgcolor='white', yaxis_title="Index (100 = Base Month)", legend=dict(orientation="h", y=1.12, x=0.5, xanchor="center"), margin=dict(t=30, b=10, l=10, r=10))
+                st.plotly_chart(fig_idx, use_container_width=True)
+
+                last_cost_idx = monthly_agg['Cost_Index'].iloc[-1]
+                last_gmv_idx = monthly_agg['GMV_Index'].iloc[-1]
+                if last_cost_idx > last_gmv_idx * 1.05:
+                    st.error(f"🚨 **Cost Outpacing GMV!** Cost index ({last_cost_idx:.0f}) tumbuh lebih cepat dari GMV index ({last_gmv_idx:.0f}). Biaya tidak scaling efisien.")
+                elif last_gmv_idx > last_cost_idx * 1.05:
+                    st.success(f"✅ **Healthy Scaling!** GMV index ({last_gmv_idx:.0f}) tumbuh lebih cepat dari Cost index ({last_cost_idx:.0f}). Efisiensi membaik.")
+                else:
+                    st.info(f"⚖️ **Proportional Growth.** GMV ({last_gmv_idx:.0f}) dan Cost ({last_cost_idx:.0f}) tumbuh seimbang.")
+            else:
+                st.info("Data belum cukup untuk analisis growth (minimal 2 bulan).")
+
+        st.divider()
+        st.subheader("📋 Per-Store Cost Detail Matrix")
+
+        disp_store = store_summary[['Rank', 'Store', 'Grade', 'Total Cost', 'GMV', 'Order_Qty', 'BSA', 'Avg CPO', 'Cost/GMV %', 'Cost_Share %', 'Trend']].copy()
+        disp_store['Trend'] = disp_store['Trend'].apply(lambda x: f"{x:+.2f}pp")
+
+        styler_exp = disp_store.style\
             .background_gradient(subset=['Cost/GMV %', 'Avg CPO'], cmap='RdYlGn_r')\
             .background_gradient(subset=['BSA'], cmap='Greens')\
+            .background_gradient(subset=['Cost_Share %'], cmap='Purples')\
             .format({
                 'Total Cost': 'Rp {:,.0f}',
                 'GMV': 'Rp {:,.0f}',
                 'Order_Qty': '{:,.0f}',
                 'BSA': 'Rp {:,.0f}',
-                'Cost_per_Order': 'Rp {:,.0f}',
                 'Avg CPO': 'Rp {:,.0f}',
-                'Cost/GMV %': '{:.2f}%'
+                'Cost/GMV %': '{:.2f}%',
+                'Cost_Share %': '{:.1f}%'
             })
-        
-        st.dataframe(styler_exp, use_container_width=True, height=400)
-        
-        # Tampilkan insight
-        best_store = store_summary.loc[store_summary['Cost/GMV %'].idxmin()]
-        worst_store = store_summary.loc[store_summary['Cost/GMV %'].idxmax()]
-        
+
+        st.dataframe(styler_exp, use_container_width=True, height=400, hide_index=True)
+
+        best_store = store_summary.iloc[0]
+        worst_store = store_summary.iloc[-1]
         col_ins1, col_ins2 = st.columns(2)
         with col_ins1:
-            st.success(f"🌟 **Most Efficient:** {best_store['Store']} dengan Cost/GMV Ratio **{best_store['Cost/GMV %']:.2f}%**")
+            st.success(f"🌟 **Most Efficient:** {best_store['Store']} — Cost/GMV **{best_store['Cost/GMV %']:.2f}%** | Grade **{best_store['Grade']}**")
         with col_ins2:
-            st.warning(f"⚠️ **Needs Attention:** {worst_store['Store']} dengan Cost/GMV Ratio **{worst_store['Cost/GMV %']:.2f}%**")
-        
-        # --- C. MONTHLY TREND PER STORE ---
+            st.error(f"🚨 **Least Efficient:** {worst_store['Store']} — Cost/GMV **{worst_store['Cost/GMV %']:.2f}%** | Grade **{worst_store['Grade']}**")
+
         st.divider()
-        st.subheader("Monthly Trend by Store")
-        
-        # Store selector
+        st.subheader("📉 Monthly %Cost Trend by Store")
+
         stores = sorted(df_exp['Store'].unique())
-        selected_stores = st.multiselect(
-            "Pilih Store:",
-            options=stores,
-            default=stores[:3] if len(stores) > 3 else stores,
-            key="exp_store_selector"
-        )
-        
+        selected_stores = st.multiselect("Pilih Store:", options=stores, default=stores, key="exp_store_selector")
+
         if selected_stores:
-            df_trend = df_exp[df_exp['Store'].isin(selected_stores)]
-            
-            # Color palette
-            color_palette = ['#66C2A5', '#FC8D62', '#8DA0CB', '#E78AC3', '#A6D854', '#FFD92F', '#E5C494', '#B3B3B3']
-            store_colors = {store: color_palette[i % len(color_palette)] for i, store in enumerate(selected_stores)}
-            
-            # Chart 1: % Cost Ratio Trend by Store
-            st.markdown("#### % Cost Ratio Trend by Store")
+            df_trend_exp = df_exp[df_exp['Store'].isin(selected_stores)]
+
             fig_cost_pct = go.Figure()
-            
             for store in selected_stores:
-                store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
-                fig_cost_pct.add_trace(go.Scatter(
-                    x=store_data['Month'],
-                    y=store_data['%Cost'],
-                    name=store,
-                    mode='lines+markers+text',
-                    text=[f"{x:.1f}%" for x in store_data['%Cost']],
-                    textposition='top center',
-                    textfont=dict(size=9)
-                ))
-            
-            fig_cost_pct.update_layout(
-                height=400,
-                title="% Cost Ratio Trend by Store",
-                yaxis_title="% Cost",
-                yaxis=dict(ticksuffix="%"),
-                hovermode="x unified",
-                plot_bgcolor='white'
-            )
+                store_data = df_trend_exp[df_trend_exp['Store'] == store].sort_values('Month_Date')
+                fig_cost_pct.add_trace(go.Scatter(x=store_data['Month'], y=store_data['%Cost'], name=store, mode='lines+markers+text', text=[f"{x:.1f}%" for x in store_data['%Cost']], textposition='top center', textfont=dict(size=9)))
+
+            fig_cost_pct.add_hline(y=avg_cost_pct_exp, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Avg All Stores: {avg_cost_pct_exp:.2f}%")
+            fig_cost_pct.update_layout(height=420, yaxis_title="% Cost Ratio", yaxis=dict(ticksuffix="%"), hovermode="x unified", plot_bgcolor='white', legend=dict(orientation="h", y=1.12, x=0.5, xanchor="center"), margin=dict(t=30, b=10, l=10, r=10))
             st.plotly_chart(fig_cost_pct, use_container_width=True)
-            
-            # Chart 2: CPO Trend by Store
-            st.markdown("#### Cost per Order (CPO) Trend by Store")
+
+            st.markdown("#### 💰 Cost per Order (CPO) Trend by Store")
             fig_cpo = go.Figure()
-            
             for store in selected_stores:
-                store_data = df_trend[df_trend['Store'] == store].sort_values('Month_Date')
-                fig_cpo.add_trace(go.Bar(
-                    x=store_data['Month'],
-                    y=store_data['Cost_per_Order'],
-                    name=store,
-                    text=[f"Rp {x:,.0f}" for x in store_data['Cost_per_Order']],
-                    textposition='auto',
-                    textfont=dict(size=9)
-                ))
-            
-            fig_cpo.update_layout(
-                height=400,
-                title="Cost per Order (CPO) Trend by Store",
-                yaxis_title="Cost per Order (Rp)",
-                barmode='group',
-                hovermode="x unified",
-                plot_bgcolor='white'
-            )
+                store_data = df_trend_exp[df_trend_exp['Store'] == store].sort_values('Month_Date')
+                fig_cpo.add_trace(go.Bar(x=store_data['Month'], y=store_data['Cost_per_Order'], name=store, text=[f"Rp{x/1000:,.0f}k" for x in store_data['Cost_per_Order']], textposition='auto', textfont=dict(size=9)))
+
+            fig_cpo.update_layout(height=420, yaxis_title="Cost per Order (Rp)", barmode='group', hovermode="x unified", plot_bgcolor='white', legend=dict(orientation="h", y=1.12, x=0.5, xanchor="center"), margin=dict(t=30, b=10, l=10, r=10))
             st.plotly_chart(fig_cpo, use_container_width=True)
-        
-        # --- D. STORE COMPARISON HEATMAP ---
+
         st.divider()
-        st.subheader("🗺️ Store Performance Matrix")
-        
-        # Pivot table for heatmap
+        st.subheader("🗺️ Store Performance Heatmap")
+
         try:
-            pivot_store = df_exp.pivot_table(
-                values='%Cost',
-                index='Store',
-                columns='Month',
-                aggfunc='mean'
-            ).fillna(0)
-            
-            # Sort index alphabetically
+            pivot_store = df_exp.pivot_table(values='%Cost', index='Store', columns='Month', aggfunc='mean').fillna(0)
             pivot_store = pivot_store.sort_index()
-            
+
             fig_heat = go.Figure(data=go.Heatmap(
-                z=pivot_store.values,
-                x=list(pivot_store.columns),
-                y=list(pivot_store.index),
+                z=pivot_store.values, x=list(pivot_store.columns), y=list(pivot_store.index),
                 colorscale='RdYlGn_r',
                 text=[[f"{val:.2f}%" for val in row] for row in pivot_store.values],
-                texttemplate="%{text}",
-                textfont={"size": 10}
+                texttemplate="%{text}", textfont={"size": 11, "weight": "bold"},
+                hovertemplate="<b>%{y}</b><br>Period: %{x}<br>%Cost: %{z:.2f}%<extra></extra>"
             ))
-            
-            fig_heat.update_layout(
-                height=450,
-                title="% Cost Ratio Heatmap (Store vs Month)",
-                xaxis_title="Month",
-                yaxis_title="Store",
-                plot_bgcolor='white',
-                yaxis=dict(autorange="reversed")
-            )
+            fig_heat.update_layout(height=max(350, num_stores * 55), xaxis_title="Period", yaxis_title="Store", plot_bgcolor='white', yaxis=dict(autorange="reversed"), margin=dict(t=10, b=10, l=10, r=10))
             st.plotly_chart(fig_heat, use_container_width=True)
         except Exception as e:
-            st.warning(f"⚠️ Gagal membuat heatmap: {str(e)}")
-        
-        # --- E. BSA vs %Cost SCATTER (Unit Economics) ---
+            st.warning(f"Gagal membuat heatmap: {str(e)}")
+
         st.divider()
-        st.subheader("⚖️ Unit Economics: BSA vs %Cost by Store")
-        
+        st.subheader("⚖️ Unit Economics Quadrant: BSA vs %Cost")
+        st.caption("Kuadran strategis — Sumbu X: Basket Size (BSA), Sumbu Y: %Cost. Ideal: Kanan-Bawah (BSA besar, cost rendah).")
+
+        median_bsa = store_summary['BSA'].median()
+
         fig_scatter_exp = px.scatter(
-            store_summary,
-            x='BSA',
-            y='Cost/GMV %',
-            size='Order_Qty',
-            color='Store',
-            text='Store',
-            size_max=50,
-            title="Basket Size vs Cost Efficiency by Store",
-            labels={'BSA': 'Basket Size (Rp)', 'Cost/GMV %': '% Cost Ratio'}
+            store_summary, x='BSA', y='Cost/GMV %', size='Order_Qty', color='Grade',
+            text='Store', size_max=50,
+            color_discrete_map=grade_colors,
+            custom_data=['Store', 'Avg CPO', 'Order_Qty', 'Grade']
         )
-        
-        fig_scatter_exp.update_traces(
-            textposition='top center',
-            textfont=dict(size=10, weight='bold')
-        )
-        
-        fig_scatter_exp.update_layout(
-            height=500,
-            plot_bgcolor='white',
-            xaxis=dict(title='Basket Size (Rp) →', showgrid=True, gridcolor='rgba(0,0,0,0.05)'),
-            yaxis=dict(title='% Cost Ratio →', showgrid=True, gridcolor='rgba(0,0,0,0.05)')
-        )
-        
-        # Tambahkan garis tren kasar
-        fig_scatter_exp.add_hline(y=avg_cost_pct_exp, line_dash="dash", line_color="gray", 
-                                   annotation_text=f"Avg: {avg_cost_pct_exp:.2f}%", annotation_position="right")
-        
+
+        max_bsa = store_summary['BSA'].max() * 1.3
+        max_pct = store_summary['Cost/GMV %'].max() * 1.3
+        fig_scatter_exp.add_shape(type="rect", x0=median_bsa, y0=0, x1=max_bsa, y1=avg_cost_pct_exp, fillcolor="rgba(16,185,129,0.06)", line_width=0, layer="below")
+        fig_scatter_exp.add_shape(type="rect", x0=0, y0=avg_cost_pct_exp, x1=median_bsa, y1=max_pct, fillcolor="rgba(239,68,68,0.06)", line_width=0, layer="below")
+
+        fig_scatter_exp.add_annotation(x=0.95, y=0.05, xref="paper", yref="paper", text="🌟 EFFICIENT<br><span style='font-size:11px'>High BSA, Low Cost</span>", showarrow=False, font=dict(size=14, color="#10B981"), opacity=0.4, align="right")
+        fig_scatter_exp.add_annotation(x=0.05, y=0.95, xref="paper", yref="paper", text="🚨 INEFFICIENT<br><span style='font-size:11px'>Low BSA, High Cost</span>", showarrow=False, font=dict(size=14, color="#EF4444"), opacity=0.4, align="left")
+
+        fig_scatter_exp.add_hline(y=avg_cost_pct_exp, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Avg %Cost: {avg_cost_pct_exp:.2f}%")
+        fig_scatter_exp.add_vline(x=median_bsa, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Median BSA: Rp {median_bsa:,.0f}")
+
+        fig_scatter_exp.update_traces(textposition='top center', textfont=dict(size=10, weight='bold'), hovertemplate="<b>%{customdata[0]}</b><br>BSA: Rp %{x:,.0f}<br>%Cost: %{y:.2f}%<br>CPO: Rp %{customdata[1]:,.0f}<br>Orders: %{customdata[2]:,.0f}<br>Grade: %{customdata[3]}<extra></extra>")
+        fig_scatter_exp.update_layout(height=500, plot_bgcolor='white', xaxis=dict(title='Basket Size (Rp) →', showgrid=True, gridcolor='rgba(0,0,0,0.05)'), yaxis=dict(title='% Cost Ratio →', showgrid=True, gridcolor='rgba(0,0,0,0.05)'), legend=dict(title="Grade"), margin=dict(t=20, b=10, l=10, r=10))
         st.plotly_chart(fig_scatter_exp, use_container_width=True)
-        
-        st.caption("💡 **Insight:** Semakin ke kanan (BSA besar), idealnya %Cost Ratio semakin rendah (turun ke bawah). Store dengan BSA kecil cenderung memiliki cost ratio lebih tinggi.")
-    
+
+        st.divider()
+        st.subheader("💡 Auto-Generated Actionable Insights")
+
+        insights = []
+
+        grade_d_stores = store_summary[store_summary['Grade'] == 'D']
+        if not grade_d_stores.empty:
+            names_d = ", ".join(grade_d_stores['Store'].tolist())
+            total_d_cost = grade_d_stores['Total Cost'].sum()
+            insights.append(("🚨", "Critical Stores", f"**{len(grade_d_stores)} store** mendapat Grade D (Cost/GMV > 8%): {names_d}. Total cost: {_fmt_rp_short(total_d_cost)}. **Action:** Review kontrak logistik, negosiasi tarif, atau evaluasi kelayakan operasional.", "#FEE2E2", "#EF4444"))
+
+        improving = store_summary[store_summary['Trend'] < -0.5]
+        if not improving.empty:
+            names_imp = ", ".join(improving['Store'].tolist())
+            insights.append(("📉", "Improving Efficiency", f"**{len(improving)} store** menunjukkan penurunan %Cost MoM (membaik): {names_imp}. **Action:** Pertahankan strategi, identifikasi best practice untuk direplikasi.", "#D1FAE5", "#10B981"))
+
+        worsening = store_summary[store_summary['Trend'] > 0.5]
+        if not worsening.empty:
+            names_wrs = ", ".join(worsening['Store'].tolist())
+            insights.append(("📈", "Rising Cost Alert", f"**{len(worsening)} store** mengalami kenaikan %Cost MoM: {names_wrs}. **Action:** Investigasi penyebab — volume turun? Tarif naik? BSA mengecil?", "#FEF3C7", "#F59E0B"))
+
+        top_cost_store = store_summary.sort_values('Cost_Share %', ascending=False).iloc[0]
+        if top_cost_store['Cost_Share %'] > 40:
+            insights.append(("🎯", "Cost Concentration Risk", f"**{top_cost_store['Store']}** menyumbang **{top_cost_store['Cost_Share %']:.1f}%** dari total cost. **Action:** Diversifikasi fulfillment center atau negosiasi volume discount.", "#EDE9FE", "#7C3AED"))
+
+        low_bsa_stores = store_summary[store_summary['BSA'] < median_bsa * 0.7]
+        if not low_bsa_stores.empty:
+            names_lb = ", ".join(low_bsa_stores['Store'].tolist())
+            insights.append(("🛒", "Low Basket Size", f"**{len(low_bsa_stores)} store** memiliki BSA jauh di bawah median: {names_lb}. **Action:** Dorong bundling, minimum order, atau promo free shipping threshold.", "#DBEAFE", "#3B82F6"))
+
+        if not insights:
+            insights.append(("✅", "All Clear", "Semua store beroperasi dalam parameter normal. Terus monitor secara berkala.", "#D1FAE5", "#10B981"))
+
+        for icon, title, desc, bg, border in insights:
+            st.markdown(f"""
+<div style="background:{bg}; border-left:5px solid {border}; padding:14px 18px; border-radius:10px; margin-bottom:10px;">
+<div style="font-weight:800; color:#1F2937; display:flex; align-items:center; gap:8px; font-size:0.95rem;">
+<span style="font-size:1.2rem;">{icon}</span> {title}
+</div>
+<div style="font-size:0.88rem; color:#374151; margin-left:32px; margin-top:4px;">{desc}</div>
+</div>
+""", unsafe_allow_html=True)
+
     else:
         st.info("ℹ️ Data 'Expansi_Fullfilment_Cost' belum tersedia. Silakan tambahkan sheet dengan kolom: Store, Month, Total Cost, GMV, Order_Qty, BSA, %Cost, Cost_per_Order")
 
