@@ -659,16 +659,17 @@ def load_and_process_data(_client):
             if '%Cost' in df_exp.columns:
                 df_exp['%Cost'] = df_exp['%Cost'].apply(clean_currency_exp).fillna(0)
             
-            # Parse Date (Jan 26, Feb 26, etc.)
-            # Coba beberapa format
-            try:
-                df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], format='%b %y', errors='coerce')
-            except:
-                try:
-                    df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], format='%b-%y', errors='coerce')
-                except:
-                    df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], errors='coerce')
-            
+            # Parse Date (Jan 26, Feb 26, ...) — STRIP dulu karena ada spasi di depan (" Feb 26")
+            # yang sebelumnya bikin Month_Date jadi NaT -> sumbu-x chart ke-sort abjad.
+            df_exp['Month'] = df_exp['Month'].astype(str).str.strip()
+            df_exp['Month_Date'] = pd.to_datetime(df_exp['Month'], format='%b %y', errors='coerce')
+            _mask_na = df_exp['Month_Date'].isna()
+            if _mask_na.any():
+                df_exp.loc[_mask_na, 'Month_Date'] = pd.to_datetime(df_exp.loc[_mask_na, 'Month'], format='%b-%y', errors='coerce')
+            _mask_na = df_exp['Month_Date'].isna()
+            if _mask_na.any():
+                df_exp.loc[_mask_na, 'Month_Date'] = pd.to_datetime(df_exp.loc[_mask_na, 'Month'], errors='coerce')
+
             df_exp = df_exp.sort_values(['Store', 'Month_Date'])
             
             data['expansi_fulfillment'] = df_exp
@@ -6301,6 +6302,8 @@ with tab10:
     if not df_exp.empty:
 
         df_exp = df_exp.sort_values(['Store', 'Month_Date'])
+        # Urutan bulan kronologis — dipakai paksa categoryarray sumbu-x (anti sort abjad)
+        month_order_exp = df_exp.dropna(subset=['Month_Date']).drop_duplicates('Month').sort_values('Month_Date')['Month'].tolist()
 
         total_cost_exp = df_exp['Total Cost'].sum()
         total_gmv_exp = df_exp['GMV'].sum()
@@ -6548,7 +6551,7 @@ overflow: hidden; transition: transform 0.3s ease;
                 fig_cost_pct.add_trace(go.Scatter(x=store_data['Month'], y=store_data['%Cost'], name=store, mode='lines+markers+text', text=[f"{x:.1f}%" for x in store_data['%Cost']], textposition='top center', textfont=dict(size=9)))
 
             fig_cost_pct.add_hline(y=avg_cost_pct_exp, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Avg All Stores: {avg_cost_pct_exp:.2f}%")
-            fig_cost_pct.update_layout(height=420, yaxis_title="% Cost Ratio", yaxis=dict(ticksuffix="%"), hovermode="x unified", plot_bgcolor='white', legend=dict(orientation="h", y=1.12, x=0.5, xanchor="center"), margin=dict(t=30, b=10, l=10, r=10))
+            fig_cost_pct.update_layout(height=420, yaxis_title="% Cost Ratio", yaxis=dict(ticksuffix="%"), xaxis=dict(categoryorder='array', categoryarray=month_order_exp), hovermode="x unified", plot_bgcolor='white', legend=dict(orientation="h", y=1.12, x=0.5, xanchor="center"), margin=dict(t=30, b=10, l=10, r=10))
             st.plotly_chart(fig_cost_pct, use_container_width=True)
 
             st.markdown("#### 💰 Cost per Order (CPO) Trend by Store")
@@ -6557,7 +6560,7 @@ overflow: hidden; transition: transform 0.3s ease;
                 store_data = df_trend_exp[df_trend_exp['Store'] == store].sort_values('Month_Date')
                 fig_cpo.add_trace(go.Bar(x=store_data['Month'], y=store_data['Cost_per_Order'], name=store, text=[f"Rp{x/1000:,.0f}k" for x in store_data['Cost_per_Order']], textposition='auto', textfont=dict(size=9)))
 
-            fig_cpo.update_layout(height=420, yaxis_title="Cost per Order (Rp)", barmode='group', hovermode="x unified", plot_bgcolor='white', legend=dict(orientation="h", y=1.12, x=0.5, xanchor="center"), margin=dict(t=30, b=10, l=10, r=10))
+            fig_cpo.update_layout(height=420, yaxis_title="Cost per Order (Rp)", barmode='group', xaxis=dict(categoryorder='array', categoryarray=month_order_exp), hovermode="x unified", plot_bgcolor='white', legend=dict(orientation="h", y=1.12, x=0.5, xanchor="center"), margin=dict(t=30, b=10, l=10, r=10))
             st.plotly_chart(fig_cpo, use_container_width=True)
 
         st.divider()
@@ -6565,6 +6568,7 @@ overflow: hidden; transition: transform 0.3s ease;
 
         try:
             pivot_store = df_exp.pivot_table(values='%Cost', index='Store', columns='Month', aggfunc='mean').fillna(0)
+            pivot_store = pivot_store.reindex(columns=[m for m in month_order_exp if m in pivot_store.columns])
             pivot_store = pivot_store.sort_index()
 
             fig_heat = go.Figure(data=go.Heatmap(
@@ -6734,12 +6738,14 @@ overflow: hidden; transition: transform 0.3s ease;
         n_under = int((inv7['Month_Cover'] < 1).sum())
         n_health = int(((inv7['Month_Cover'] >= 1) & (inv7['Month_Cover'] <= 2)).sum())
         n_over = int((inv7['Month_Cover'] > 2).sum())
-        blended = inv7['Stock_Onhand'].sum() / inv7['Avg_Sales'].sum() if inv7['Avg_Sales'].sum() > 0 else 0
+        _sum_avg = inv7['Avg_Sales'].sum()
+        blended = inv7['Stock_Onhand'].sum() / _sum_avg if _sum_avg > 0 else 0
+        blended_proj = (inv7['Stock_Onhand'].sum() + inv7['Replenishment'].sum()) / _sum_avg if _sum_avg > 0 else 0
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("🔴 Understock (<1 bln)", f"{n_under} store", help="Risiko stockout")
+        k1.metric("🔴 Understock (<1 bln)", f"{n_under} store", help="Risiko stockout (cover < 1 bln)")
         k2.metric("🟢 Sehat (1–2 bln)", f"{n_health} store")
         k3.metric("🟠 Overstock (>2 bln)", f"{n_over} store", help="Modal nganggur")
-        k4.metric("Blended Cover", f"{blended:.1f} bln", help="Total stok ÷ total avg sales")
+        k4.metric("Blended Cover", f"{blended:.1f} bln", delta=f"{blended_proj - blended:+.1f} → {blended_proj:.1f} stlh replen", delta_color="off", help="Total stok ÷ total avg sales. Delta = proyeksi setelah rencana replenishment masuk.")
 
         # ===== Store 360 Scorecard (PCA combined) =====
         st.markdown("#### 📋 Store 360 Scorecard")
@@ -6761,23 +6767,69 @@ overflow: hidden; transition: transform 0.3s ease;
             tbl = tbl.drop(columns=['Outbound_Trend'])
         st.dataframe(tbl, use_container_width=True, hide_index=True, column_config=cfg360)
 
-        # ===== Cover bar chart (7 store, Bandung & Yogya TERPISAH) =====
-        st.markdown("#### 🏬 Month Cover per Cabang")
-        st.caption("Bandung & Yogyakarta ditampilkan terpisah — biar ketahuan alokasi replenishment per kota.")
-        inv_bar = inv7.sort_values('Month_Cover').copy()
-        _bar_colors = ['#EF4444' if c < 1 else ('#10B981' if c <= 2 else '#F59E0B') for c in inv_bar['Month_Cover']]
-        fig_cov = go.Figure(go.Bar(
-            x=inv_bar['Month_Cover'], y=inv_bar['Store'], orientation='h',
-            marker_color=_bar_colors,
-            text=[f"{c:.1f}" for c in inv_bar['Month_Cover']], textposition='outside',
-            customdata=inv_bar[['Stock_Onhand', 'Avg_Sales', 'Replenishment']].values,
-            hovertemplate="<b>%{y}</b><br>Cover: %{x:.1f} bln<br>Stock: %{customdata[0]:,.0f}<br>Avg Sales: %{customdata[1]:,.0f}<br>Replen: %{customdata[2]:,.0f}<extra></extra>"
+        # ===== Cover sekarang vs setelah replenishment (7 store, Bandung & Yogya TERPISAH) =====
+        st.markdown("#### 🏬 Month Cover per Cabang — Sekarang vs Setelah Replenishment")
+        st.caption("Bar solid = cover stok sekarang. Bar terang = tambahan dari rencana replenishment (Qty Replen). Total bar = cover proyeksi setelah barang masuk → bukti stok akan aman. Bandung & Yogya terpisah.")
+        cb = inv7.sort_values('Month_Cover').copy()
+        cb['Cover_Now'] = np.where(cb['Avg_Sales'] > 0, cb['Stock_Onhand'] / cb['Avg_Sales'], 0)
+        cb['Cover_Replen'] = np.where(cb['Avg_Sales'] > 0, cb['Replenishment'] / cb['Avg_Sales'], 0)
+        cb['Cover_Proj'] = cb['Cover_Now'] + cb['Cover_Replen']
+        _now_colors = ['#EF4444' if c < 1 else ('#10B981' if c <= 2 else '#F59E0B') for c in cb['Cover_Now']]
+        fig_cov = go.Figure()
+        fig_cov.add_trace(go.Bar(
+            y=cb['Store'], x=cb['Cover_Now'], orientation='h', name='Cover sekarang',
+            marker_color=_now_colors,
+            text=[f"{c:.1f}" for c in cb['Cover_Now']], textposition='inside', insidetextanchor='middle', textfont=dict(size=10),
+            customdata=cb[['Stock_Onhand', 'Avg_Sales']].values,
+            hovertemplate="<b>%{y}</b><br>Cover sekarang: %{x:.1f} bln<br>Stock: %{customdata[0]:,.0f}<br>Avg Sales: %{customdata[1]:,.0f}<extra></extra>"
         ))
-        fig_cov.add_vline(x=1, line_dash="dash", line_color="#9CA3AF", annotation_text="1.0")
+        fig_cov.add_trace(go.Bar(
+            y=cb['Store'], x=cb['Cover_Replen'], orientation='h', name='+ Rencana replenishment',
+            marker_color='rgba(59,130,246,0.45)',
+            text=[f"+{c:.1f}" for c in cb['Cover_Replen']], textposition='inside', insidetextanchor='middle', textfont=dict(size=10),
+            customdata=cb[['Replenishment', 'Cover_Proj']].values,
+            hovertemplate="<b>%{y}</b><br>Qty Replen: %{customdata[0]:,.0f}<br>Cover proyeksi: %{customdata[1]:.1f} bln<extra></extra>"
+        ))
+        fig_cov.add_vline(x=1, line_dash="dash", line_color="#9CA3AF", annotation_text="aman ≥1")
         fig_cov.add_vline(x=2, line_dash="dash", line_color="#9CA3AF", annotation_text="2.0")
-        fig_cov.update_layout(height=340, plot_bgcolor='white', xaxis_title="Month Cover (bln)",
-                              yaxis=dict(autorange="reversed"), margin=dict(t=20, b=10, l=10, r=50))
+        fig_cov.update_layout(barmode='stack', height=380, plot_bgcolor='white', xaxis_title="Month Cover (bln)",
+                              yaxis=dict(autorange="reversed"),
+                              legend=dict(orientation='h', y=1.12, x=0.5, xanchor='center'),
+                              margin=dict(t=30, b=10, l=10, r=50))
         st.plotly_chart(fig_cov, use_container_width=True)
+
+        # ===== Outbound replenishment — SEMUA channel & periode =====
+        st.markdown("#### 📦 Outbound Replenishment — Semua Channel & Periode")
+        st.caption("Qty outbound (replenishment) seluruh channel di semua bulan. Warna skala log (Shopee Official jauh lebih besar dari lainnya); angka di sel = qty asli.")
+        ob = df_out_long.copy()
+        ob_month_order = ob.dropna(subset=['Month_Date']).drop_duplicates('Month_Label').sort_values('Month_Date')['Month_Label'].tolist()
+        piv_ob = ob.pivot_table(index='Store', columns='Month_Label', values='Outbound_Qty', aggfunc='sum')
+        piv_ob = piv_ob.reindex(columns=[m for m in ob_month_order if m in piv_ob.columns])
+        if not piv_ob.empty:
+            piv_ob = piv_ob.loc[piv_ob.sum(axis=1).sort_values(ascending=False).index]
+            z_real = piv_ob.values.astype(float)
+            z_log = np.log10(z_real + 1)
+
+            def _fmt_ob(v):
+                if v >= 10000: return f"{v/1000:.0f}k"
+                if v >= 1000: return f"{v/1000:.1f}k"
+                return f"{v:.0f}" if v > 0 else ""
+            text_ob = [[_fmt_ob(v) for v in row] for row in z_real]
+            try:
+                fig_ob = go.Figure(data=go.Heatmap(
+                    z=z_log, x=list(piv_ob.columns), y=list(piv_ob.index),
+                    customdata=z_real, colorscale='Teal',
+                    text=text_ob, texttemplate="%{text}", textfont={"size": 11},
+                    hovertemplate="<b>%{y}</b><br>%{x}<br>Outbound: %{customdata:,.0f}<extra></extra>",
+                    colorbar=dict(title="log₁₀ qty")
+                ))
+                fig_ob.update_layout(height=max(360, len(piv_ob.index) * 32), plot_bgcolor='white',
+                                     xaxis_title="Periode", yaxis_title="Channel",
+                                     yaxis=dict(autorange="reversed"), margin=dict(t=10, b=10, l=10, r=10))
+                st.plotly_chart(fig_ob, use_container_width=True)
+            except Exception as _e_ob:
+                st.warning(f"Gagal membuat heatmap outbound: {_e_ob}")
+                st.dataframe(piv_ob.fillna(0).astype(int), use_container_width=True)
 
         # ===== Quadrant korelasi: Cover vs %Cost (bubble = outbound) =====
         if not cost_ce.empty and store360['PctCost'].notna().any():
@@ -6803,14 +6855,16 @@ overflow: hidden; transition: transform 0.3s ease;
             _avg = store360['PctCost'].dropna().mean()
             bad = store360[(store360['Cover'] > 2) & (store360['PctCost'].notna()) & (store360['PctCost'] > _avg)]
             for _, r in bad.iterrows():
+                _proj = (r['Stock'] + r['Replen']) / r['AvgSales'] if r['AvgSales'] > 0 else 0
                 ins360.append(("🚨", f"{r['CostKey']}: overstock + mahal",
-                               f"Cover <b>{r['Cover']:.1f} bln</b> (overstock) sekaligus %Cost <b>{r['PctCost']:.1f}%</b> (Grade {r['Grade']}, di atas rata-rata). <b>Action:</b> rem replenishment & review biaya fulfillment — jangan ditambah stok.",
+                               f"Cover <b>{r['Cover']:.1f} bln</b> (overstock) sekaligus %Cost <b>{r['PctCost']:.1f}%</b> (Grade {r['Grade']}, di atas rata-rata) — rencana replen malah mendorong proyeksi ke <b>{_proj:.1f} bln</b>. <b>Action:</b> rem replenishment & review biaya fulfillment, jangan ditambah stok.",
                                "#FEE2E2", "#EF4444"))
-        cheap_under = store360[(store360['Cover'] < 1) & (store360['PctCost'].notna()) & (store360['Grade'].isin(['A', 'B']))]
+        cheap_under = store360[(store360['Cover'] < 1) & (store360['PctCost'].notna()) & (store360['Grade'].isin(['A', 'B']))].copy()
         if not cheap_under.empty:
-            _names = ", ".join(cheap_under['CostKey'].tolist())
-            ins360.append(("📈", "Aman dipush lebih banyak",
-                           f"<b>{len(cheap_under)} store</b> kering (&lt;1 bln) TAPI murah dilayani (Grade A/B): {_names}. <b>Action:</b> prioritaskan replenishment ke sini — cost-efficient & cegah stockout.",
+            cheap_under['Proj'] = np.where(cheap_under['AvgSales'] > 0, (cheap_under['Stock'] + cheap_under['Replen']) / cheap_under['AvgSales'], 0)
+            _names = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['Proj']:.1f})" for _, row in cheap_under.iterrows()])
+            ins360.append(("📈", "Kering sekarang, aman setelah replen",
+                           f"<b>{len(cheap_under)} store</b> cover &lt;1 bln & murah dilayani (Grade A/B), TAPI rencana replen mengangkat proyeksi cover (skrg→proyeksi): {_names}. <b>Action:</b> pastikan replenishment on-track agar tidak stockout sebelum barang masuk.",
                            "#D1FAE5", "#10B981"))
         if not ins360:
             ins360.append(("✅", "Seimbang", "Tidak ada store yang overstock-sekaligus-mahal. Pantau berkala.", "#D1FAE5", "#10B981"))
