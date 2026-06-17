@@ -3480,7 +3480,7 @@ with tab3:
                 elif days <= 30: return '🚨 Critical (<30 Days)'
                 elif days <= 90: return '⚠️ NED (1-3 Months)'
                 elif days <= 180: return '📅 NED (3-6 Months)'
-                elif days <= 365: return '✅ Safe (6-12 Months)'
+                elif days <= 365: return '✅ NED (6-12 Months)'
                 else: return '🌟 Fresh (>1 Year)'
             except: return 'Not Defined'
 
@@ -3897,7 +3897,7 @@ with tab3:
             
             if not df_batch_regular.empty:
                 age_dist = df_batch_regular.groupby('Expiry_Category').agg({'Total_Value': 'sum', 'Stock_Qty': 'sum'}).reset_index()
-                order_list = ['❌ EXPIRED', '🚨 Critical (<30 Days)', '⚠️ NED (1-3 Months)', '📅 NED (3-6 Months)', '✅ Safe (6-12 Months)', '🌟 Fresh (>1 Year)', 'Not Defined']
+                order_list = ['❌ EXPIRED', '🚨 Critical (<30 Days)', '⚠️ NED (1-3 Months)', '📅 NED (3-6 Months)', '✅ NED (6-12 Months)', '🌟 Fresh (>1 Year)', 'Not Defined']
                 age_dist['Expiry_Category'] = pd.Categorical(age_dist['Expiry_Category'], categories=order_list, ordered=True)
                 age_dist = age_dist.sort_values('Expiry_Category')
                 
