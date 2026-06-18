@@ -6812,9 +6812,9 @@ overflow: hidden; transition: transform 0.3s ease;
             customdata=cb[['Replenishment', 'Cover_Proj']].values,
             hovertemplate="<b>%{y}</b><br>Qty replenishment: %{customdata[0]:,.0f}<br>Proyeksi coverage: %{customdata[1]:.1f} bulan<extra></extra>"
         ))
-        fig_cov.add_vline(x=under_thr, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Min {under_thr:.0f}")
-        fig_cov.add_vline(x=mp_over_thr, line_dash="dot", line_color="#9CA3AF", annotation_text=f"Ambang MP {mp_over_thr:.0f}")
-        fig_cov.add_vline(x=pca_over_thr, line_dash="dot", line_color="#C2853A", annotation_text=f"Ambang PCA {pca_over_thr:.0f}")
+        fig_cov.add_vline(x=under_thr, line_dash="dash", line_color="#9CA3AF", annotation_text=f"    {under_thr:.0f}")
+        fig_cov.add_vline(x=mp_over_thr, line_dash="dot", line_color="#9CA3AF", annotation_text=f"    {mp_over_thr:.0f}")
+        fig_cov.add_vline(x=pca_over_thr, line_dash="dot", line_color="#C2853A", annotation_text=f"    {pca_over_thr:.0f}")
         fig_cov.update_layout(barmode='stack', height=380, plot_bgcolor='white', xaxis_title="Months of coverage",
                               yaxis=dict(autorange="reversed"),
                               legend=dict(orientation='h', y=1.12, x=0.5, xanchor='center'),
