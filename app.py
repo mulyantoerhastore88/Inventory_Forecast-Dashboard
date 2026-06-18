@@ -6689,7 +6689,7 @@ overflow: hidden; transition: transform 0.3s ease;
         # ---- Ambang coverage per lead time: PCA/retail butuh coverage lebih tinggi ----
         with st.expander("⚙️ Pengaturan ambang coverage (sesuaikan lead time)", expanded=False):
             _ct1, _ct2, _ct3 = st.columns(3)
-            under_thr = _ct1.number_input("Understock di bawah (bulan)", 0.0, 5.0, 1.0, 0.1, key="cov_under_thr")
+            under_thr = _ct1.number_input("Need Replenishment di bawah (bulan)", 0.0, 5.0, 1.0, 0.1, key="cov_under_thr")
             mp_over_thr = _ct2.number_input("Overstock marketplace di atas (bulan)", 1.0, 6.0, 2.0, 0.1, key="cov_mp_thr")
             pca_over_thr = _ct3.number_input("Overstock PCA / retail di atas (bulan)", 1.0, 8.0, 3.0, 0.1, key="cov_pca_thr",
                                              help="Lead time PCA lebih panjang, jadi coverage lebih tinggi masih dianggap wajar.")
@@ -6699,12 +6699,12 @@ overflow: hidden; transition: transform 0.3s ease;
 
         def _cover_status(store, cover):
             if cover < under_thr:
-                return 'Understock'
+                return 'Need Replenishment'
             return 'Sehat' if cover <= _over_thr(store) else 'Overstock'
 
-        _status_color = {'Understock': '#EF4444', 'Sehat': '#10B981', 'Overstock': '#F59E0B'}
-        _status_color_light = {'Understock': '#FCEBEB', 'Sehat': '#EAF3DE', 'Overstock': '#FAEEDA'}
-        _status_emoji = {'Understock': '🔴 Understock', 'Sehat': '🟢 Optimal', 'Overstock': '🟠 Overstock'}
+        _status_color = {'Need Replenishment': '#EF4444', 'Sehat': '#10B981', 'Overstock': '#F59E0B'}
+        _status_color_light = {'Need Replenishment': '#FCEBEB', 'Sehat': '#EAF3DE', 'Overstock': '#FAEEDA'}
+        _status_emoji = {'Need Replenishment': '🔴 Need Replenishment', 'Sehat': '🟢 Optimal', 'Overstock': '🟠 Overstock'}
 
         grade_colors360 = {'A': '#10B981', 'B': '#3B82F6', 'C': '#F59E0B', 'D': '#EF4444'}
         def _grade360(p):
@@ -6757,14 +6757,14 @@ overflow: hidden; transition: transform 0.3s ease;
         # ===== KPI ringkas (7 cabang, split; status pakai ambang lead time) =====
         inv7 = inv7.copy()
         inv7['_cstatus'] = inv7.apply(lambda r: _cover_status(r['Store'], r['Month_Cover']), axis=1)
-        n_under = int((inv7['_cstatus'] == 'Understock').sum())
+        n_under = int((inv7['_cstatus'] == 'Need Replenishment').sum())
         n_health = int((inv7['_cstatus'] == 'Sehat').sum())
         n_over = int((inv7['_cstatus'] == 'Overstock').sum())
         _sum_avg = inv7['Avg_Sales'].sum()
         blended = inv7['Stock_Onhand'].sum() / _sum_avg if _sum_avg > 0 else 0
         blended_proj = (inv7['Stock_Onhand'].sum() + inv7['Replenishment'].sum()) / _sum_avg if _sum_avg > 0 else 0
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("🔴 Understock", f"{n_under} cabang", help=f"Coverage di bawah {under_thr:.1f} bulan — risiko stockout")
+        k1.metric("🔴 Need Replenishment", f"{n_under} cabang", help=f"Coverage di bawah {under_thr:.1f} bulan — risiko stockout")
         k2.metric("🟢 Optimal", f"{n_health} cabang", help="Coverage dalam rentang target (disesuaikan lead time)")
         k3.metric("🟠 Overstock", f"{n_over} cabang", help="Coverage melebihi ambang lead time — modal mengendap")
         k4.metric("Blended Coverage", f"{blended:.1f} bulan", delta=f"proyeksi {blended_proj:.1f} bln pasca-replenishment", delta_color="off", help="Total stok ÷ total avg sales. Delta = proyeksi setelah rencana replenishment.")
@@ -6891,14 +6891,14 @@ overflow: hidden; transition: transform 0.3s ease;
                                f"%Cost <b>{r['PctCost']:.1f}%</b> (Grade {r['Grade']}) — tertinggi di antara cabang ekspansi. Coverage {r['Cover']:.1f} bulan masih wajar untuk lead time-nya, jadi fokus ke <b>efisiensi biaya</b> (review tarif logistik, dorong BSA/basket size), bukan menahan stok.",
                                "#FEF3C7", "#F59E0B"))
         # 2) Coverage rendah sekarang tapi terbantu rencana replenishment
-        under_now = store360[store360['_status'] == 'Understock'].copy()
+        under_now = store360[store360['_status'] == 'Need Replenishment'].copy()
         if not under_now.empty:
             _names = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['_proj']:.1f})" for _, row in under_now.iterrows()])
             ins360.append(("📈", "Coverage rendah — terbantu rencana replenishment",
                            f"<b>{len(under_now)} cabang</b> di bawah ambang saat ini, namun rencana replenishment mengangkat proyeksi coverage (saat ini→proyeksi): {_names}. <b>Action:</b> pastikan inbound on-track agar tidak stockout sebelum barang tiba.",
                            "#D1FAE5", "#10B981"))
         # 3) Sudah cukup stok tapi rencana replen mendorong melewati ambang lead time
-        over_plan = store360[(store360['_status'] != 'Understock') & (store360['_proj'] > store360['CostKey'].apply(_over_thr))].copy()
+        over_plan = store360[(store360['_status'] != 'Need Replenishment') & (store360['_proj'] > store360['CostKey'].apply(_over_thr))].copy()
         if not over_plan.empty:
             _names2 = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['_proj']:.1f})" for _, row in over_plan.iterrows()])
             ins360.append(("⚠️", "Tinjau alokasi replenishment",
