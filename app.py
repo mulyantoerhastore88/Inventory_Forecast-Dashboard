@@ -759,6 +759,72 @@ def load_and_process_data(_client):
             data['outbound_replen_wide'] = pd.DataFrame()
             data['outbound_month_cols'] = []
 
+        # ==============================================================================
+        # 12. OFFLINE STORE (NEW SHEET) - 2 tabel stack: atas=sales+inventory, bawah=outbound
+        # ==============================================================================
+        try:
+            ws_off = None
+            for _cand in ["Offline Store", "Offline_Store", "Offline", "OFFLINE STORE",
+                          "Offline Store Sales", "Store Offline", "Offline Store(Sales)"]:
+                try:
+                    ws_off = spreadsheet.worksheet(_cand)
+                    break
+                except Exception:
+                    continue
+            if ws_off is not None:
+                _ov = ws_off.get_all_values()
+                _hdr = [i for i, r in enumerate(_ov) if r and str(r[0]).strip().lower() == 'store']
+                _MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
+
+                def _num_off(x):
+                    if isinstance(x, str):
+                        return pd.to_numeric(x.replace(',', '').strip(), errors='coerce')
+                    return x
+
+                def _parse_off_block(start):
+                    header = [str(h).strip() for h in _ov[start]]
+                    rows = []
+                    for r in _ov[start + 1:]:
+                        if not r or str(r[0]).strip() == '':
+                            break
+                        rows.append((r + [''] * len(header))[:len(header)])
+                    dfb = pd.DataFrame(rows, columns=header)
+                    dfb = dfb.loc[:, [c for c in dfb.columns if c != '']]
+                    dfb = dfb.rename(columns={dfb.columns[0]: 'Store'})
+                    dfb['Store'] = dfb['Store'].astype(str).str.strip()
+                    return dfb[dfb['Store'] != '']
+
+                if len(_hdr) >= 1:
+                    top = _parse_off_block(_hdr[0])
+                    mtop = [c for c in top.columns if any(m in c.upper() for m in _MONTHS)]
+                    c_onhand = next((c for c in top.columns if 'onhand' in c.lower() or ('stock' in c.lower() and 'cover' not in c.lower())), None)
+                    c_avg = next((c for c in top.columns if 'avg' in c.lower() and 'sales' in c.lower()), None)
+                    for c in mtop + [x for x in [c_onhand, c_avg] if x]:
+                        top[c] = top[c].apply(_num_off).fillna(0)
+                    inv = pd.DataFrame({'Store': top['Store'].values})
+                    inv['Stock_Onhand'] = top[c_onhand].values if c_onhand else 0
+                    inv['Avg_Sales'] = top[c_avg].values if c_avg else (top[mtop].mean(axis=1).values if mtop else 0)
+                    inv['Stock_Cover'] = np.where(inv['Avg_Sales'] > 0, inv['Stock_Onhand'] / inv['Avg_Sales'], 0)
+                    data['offline_inventory'] = inv
+                    if mtop:
+                        sl = top.melt(id_vars=['Store'], value_vars=mtop, var_name='Month_Label', value_name='Sales')
+                        sl['Sales'] = pd.to_numeric(sl['Sales'], errors='coerce').fillna(0)
+                        sl['Month_Date'] = pd.to_datetime(sl['Month_Label'].str.strip(), format='%b-%y', errors='coerce')
+                        data['offline_sales_long'] = sl
+
+                if len(_hdr) >= 2:
+                    bot = _parse_off_block(_hdr[1])
+                    mbot = [c for c in bot.columns if any(m in c.upper() for m in _MONTHS)]
+                    for c in mbot:
+                        bot[c] = bot[c].apply(_num_off).fillna(0)
+                    if mbot:
+                        ol = bot.melt(id_vars=['Store'], value_vars=mbot, var_name='Month_Label', value_name='Outbound')
+                        ol['Outbound'] = pd.to_numeric(ol['Outbound'], errors='coerce').fillna(0)
+                        ol['Month_Date'] = pd.to_datetime(ol['Month_Label'].str.strip(), format='%b-%y', errors='coerce')
+                        data['offline_outbound_long'] = ol
+        except Exception as e:
+            st.warning(f"Gagal load Offline Store: {e}")
+
         return data
         
     except Exception as e:
@@ -2850,13 +2916,15 @@ st.divider()
 
 
 # --- MAIN TABS ---
-tab1, tab2, tab5, tab3, tab4, tab10, tab7, tab9, tab8, tab6 = st.tabs([
+tab1, tab2, tab5, tab3, tab4, tab10, tab_exp, tab_off, tab7, tab9, tab8, tab6 = st.tabs([
     "📈 Monthly Performance Details",
     "🏷️ Forecast Performance by Brand & Tier Analysis",
     "📈 Sales & Forecast Analysis",
     "📦 Inventory Analysis",
     "🔍 SKU Evaluation",
     "🚚 Fulfillment Cost Analysis",
+    "🏬 Expansi Analytics",
+    "🏪 Offline Store",
     "🛒 Ecommerce Forecast",
     "🤝 Reseller Forecast",
     "💰 Profitability Analysis",
@@ -6290,8 +6358,10 @@ with tab10:
     else:
         st.warning("⚠️ Data 'BS_Fullfilment_Cost' belum tersedia.")
 
+
+def _render_expansi_cost():
     # ==============================================================================
-    # 6. EXPANSI FULFILLMENT COST (NEW SECTION)
+    # EXPANSI FULFILLMENT COST (dipindah ke tab Expansi Analytics)
     # ==============================================================================
     st.divider()
     st.subheader("🏪 Expansi Fulfillment Cost Analysis")
@@ -6657,8 +6727,10 @@ overflow: hidden; transition: transform 0.3s ease;
     else:
         st.info("ℹ️ Data 'Expansi_Fullfilment_Cost' belum tersedia. Silakan tambahkan sheet dengan kolom: Store, Month, Total Cost, GMV, Order_Qty, BSA, %Cost, Cost_per_Order")
 
+
+def _render_expansi_inventory():
     # ==============================================================================
-    # 7. EXPANSI STORE 360 — OUTBOUND x STOCK x COST (NEW: korelasi 3 sheet)
+    # EXPANSI STORE 360 — Inventory & Distribution (dipindah ke tab Expansi Analytics)
     # ==============================================================================
     st.divider()
     st.subheader("🔗 Expansi Store 360: Outbound → Stock → Cost")
@@ -6689,7 +6761,7 @@ overflow: hidden; transition: transform 0.3s ease;
         # ---- Ambang coverage per lead time: PCA/retail butuh coverage lebih tinggi ----
         with st.expander("⚙️ Pengaturan ambang coverage (sesuaikan lead time)", expanded=False):
             _ct1, _ct2, _ct3 = st.columns(3)
-            under_thr = _ct1.number_input("Need Replenishment di bawah (bulan)", 0.0, 5.0, 1.0, 0.1, key="cov_under_thr")
+            under_thr = _ct1.number_input("Understock di bawah (bulan)", 0.0, 5.0, 1.0, 0.1, key="cov_under_thr")
             mp_over_thr = _ct2.number_input("Overstock marketplace di atas (bulan)", 1.0, 6.0, 2.0, 0.1, key="cov_mp_thr")
             pca_over_thr = _ct3.number_input("Overstock PCA / retail di atas (bulan)", 1.0, 8.0, 3.0, 0.1, key="cov_pca_thr",
                                              help="Lead time PCA lebih panjang, jadi coverage lebih tinggi masih dianggap wajar.")
@@ -6699,12 +6771,12 @@ overflow: hidden; transition: transform 0.3s ease;
 
         def _cover_status(store, cover):
             if cover < under_thr:
-                return 'Need Replenishment'
+                return 'Understock'
             return 'Sehat' if cover <= _over_thr(store) else 'Overstock'
 
-        _status_color = {'Need Replenishment': '#EF4444', 'Sehat': '#10B981', 'Overstock': '#F59E0B'}
-        _status_color_light = {'Need Replenishment': '#FCEBEB', 'Sehat': '#EAF3DE', 'Overstock': '#FAEEDA'}
-        _status_emoji = {'Need Replenishment': '🔴 Need Replenishment', 'Sehat': '🟢 Optimal', 'Overstock': '🟠 Overstock'}
+        _status_color = {'Understock': '#EF4444', 'Sehat': '#10B981', 'Overstock': '#F59E0B'}
+        _status_color_light = {'Understock': '#FCEBEB', 'Sehat': '#EAF3DE', 'Overstock': '#FAEEDA'}
+        _status_emoji = {'Understock': '🔴 Understock', 'Sehat': '🟢 Optimal', 'Overstock': '🟠 Overstock'}
 
         grade_colors360 = {'A': '#10B981', 'B': '#3B82F6', 'C': '#F59E0B', 'D': '#EF4444'}
         def _grade360(p):
@@ -6757,14 +6829,14 @@ overflow: hidden; transition: transform 0.3s ease;
         # ===== KPI ringkas (7 cabang, split; status pakai ambang lead time) =====
         inv7 = inv7.copy()
         inv7['_cstatus'] = inv7.apply(lambda r: _cover_status(r['Store'], r['Month_Cover']), axis=1)
-        n_under = int((inv7['_cstatus'] == 'Need Replenishment').sum())
+        n_under = int((inv7['_cstatus'] == 'Understock').sum())
         n_health = int((inv7['_cstatus'] == 'Sehat').sum())
         n_over = int((inv7['_cstatus'] == 'Overstock').sum())
         _sum_avg = inv7['Avg_Sales'].sum()
         blended = inv7['Stock_Onhand'].sum() / _sum_avg if _sum_avg > 0 else 0
         blended_proj = (inv7['Stock_Onhand'].sum() + inv7['Replenishment'].sum()) / _sum_avg if _sum_avg > 0 else 0
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("🔴 Need Replenishment", f"{n_under} cabang", help=f"Coverage di bawah {under_thr:.1f} bulan — risiko stockout")
+        k1.metric("🔴 Understock", f"{n_under} cabang", help=f"Coverage di bawah {under_thr:.1f} bulan — risiko stockout")
         k2.metric("🟢 Optimal", f"{n_health} cabang", help="Coverage dalam rentang target (disesuaikan lead time)")
         k3.metric("🟠 Overstock", f"{n_over} cabang", help="Coverage melebihi ambang lead time — modal mengendap")
         k4.metric("Blended Coverage", f"{blended:.1f} bulan", delta=f"proyeksi {blended_proj:.1f} bln pasca-replenishment", delta_color="off", help="Total stok ÷ total avg sales. Delta = proyeksi setelah rencana replenishment.")
@@ -6812,9 +6884,9 @@ overflow: hidden; transition: transform 0.3s ease;
             customdata=cb[['Replenishment', 'Cover_Proj']].values,
             hovertemplate="<b>%{y}</b><br>Qty replenishment: %{customdata[0]:,.0f}<br>Proyeksi coverage: %{customdata[1]:.1f} bulan<extra></extra>"
         ))
-        fig_cov.add_vline(x=under_thr, line_dash="dash", line_color="#9CA3AF", annotation_text=f"    {under_thr:.0f}")
-        fig_cov.add_vline(x=mp_over_thr, line_dash="dot", line_color="#9CA3AF", annotation_text=f"    {mp_over_thr:.0f}")
-        fig_cov.add_vline(x=pca_over_thr, line_dash="dot", line_color="#C2853A", annotation_text=f"    {pca_over_thr:.0f}")
+        fig_cov.add_vline(x=under_thr, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Min {under_thr:.0f}")
+        fig_cov.add_vline(x=mp_over_thr, line_dash="dot", line_color="#9CA3AF", annotation_text=f"Ambang MP {mp_over_thr:.0f}")
+        fig_cov.add_vline(x=pca_over_thr, line_dash="dot", line_color="#C2853A", annotation_text=f"Ambang PCA {pca_over_thr:.0f}")
         fig_cov.update_layout(barmode='stack', height=380, plot_bgcolor='white', xaxis_title="Months of coverage",
                               yaxis=dict(autorange="reversed"),
                               legend=dict(orientation='h', y=1.12, x=0.5, xanchor='center'),
@@ -6891,14 +6963,14 @@ overflow: hidden; transition: transform 0.3s ease;
                                f"%Cost <b>{r['PctCost']:.1f}%</b> (Grade {r['Grade']}) — tertinggi di antara cabang ekspansi. Coverage {r['Cover']:.1f} bulan masih wajar untuk lead time-nya, jadi fokus ke <b>efisiensi biaya</b> (review tarif logistik, dorong BSA/basket size), bukan menahan stok.",
                                "#FEF3C7", "#F59E0B"))
         # 2) Coverage rendah sekarang tapi terbantu rencana replenishment
-        under_now = store360[store360['_status'] == 'Need Replenishment'].copy()
+        under_now = store360[store360['_status'] == 'Understock'].copy()
         if not under_now.empty:
             _names = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['_proj']:.1f})" for _, row in under_now.iterrows()])
             ins360.append(("📈", "Coverage rendah — terbantu rencana replenishment",
                            f"<b>{len(under_now)} cabang</b> di bawah ambang saat ini, namun rencana replenishment mengangkat proyeksi coverage (saat ini→proyeksi): {_names}. <b>Action:</b> pastikan inbound on-track agar tidak stockout sebelum barang tiba.",
                            "#D1FAE5", "#10B981"))
         # 3) Sudah cukup stok tapi rencana replen mendorong melewati ambang lead time
-        over_plan = store360[(store360['_status'] != 'Need Replenishment') & (store360['_proj'] > store360['CostKey'].apply(_over_thr))].copy()
+        over_plan = store360[(store360['_status'] != 'Understock') & (store360['_proj'] > store360['CostKey'].apply(_over_thr))].copy()
         if not over_plan.empty:
             _names2 = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['_proj']:.1f})" for _, row in over_plan.iterrows()])
             ins360.append(("⚠️", "Tinjau alokasi replenishment",
@@ -6913,6 +6985,117 @@ overflow: hidden; transition: transform 0.3s ease;
 <span style="font-size:1.2rem;">{icon}</span> {title}
 </div>
 <div style="font-size:0.88rem; color:#374151; margin-left:32px; margin-top:4px;">{desc}</div>
+</div>
+""", unsafe_allow_html=True)
+
+with tab_exp:
+    st.subheader("🏬 Expansi Analytics")
+    st.caption("Analitik channel ekspansi: kesehatan stok, distribusi (outbound/replenishment), & biaya fulfillment. PCA = gabungan Bandung + Yogyakarta untuk biaya.")
+    _exp_sub1, _exp_sub2 = st.tabs(["📦 Inventory & Distribution", "💰 Fulfillment Cost"])
+    with _exp_sub1:
+        _render_expansi_inventory()
+    with _exp_sub2:
+        _render_expansi_cost()
+
+with tab_off:
+    st.subheader("🏪 Offline Store Analytics")
+    st.caption("Performa toko offline: sales bulanan, replenishment (outbound), & kesehatan stok (coverage).")
+
+    df_off_inv = all_data.get('offline_inventory', pd.DataFrame())
+    df_off_sales = all_data.get('offline_sales_long', pd.DataFrame())
+    df_off_out = all_data.get('offline_outbound_long', pd.DataFrame())
+
+    if df_off_inv.empty:
+        st.info("ℹ️ Sheet Offline Store belum terbaca. Pastikan nama sheet sesuai (mis. 'Offline Store') & formatnya: tabel atas = Stock Onhand + sales bulanan + AVG Sales + Stock Cover; tabel bawah (dipisah baris kosong) = outbound/replenishment bulanan.")
+    else:
+        with st.expander("⚙️ Pengaturan ambang coverage offline (retail, lead time panjang)", expanded=False):
+            _o1, _o2 = st.columns(2)
+            off_under = _o1.number_input("Understock di bawah (bulan)", 0.0, 6.0, 1.5, 0.1, key="off_under_thr")
+            off_over = _o2.number_input("Overstock di atas (bulan)", 1.0, 15.0, 4.0, 0.1, key="off_over_thr")
+
+        def _off_status(c):
+            if c < off_under:
+                return 'Understock'
+            return 'Sehat' if c <= off_over else 'Overstock'
+        _ostatus_color = {'Understock': '#EF4444', 'Sehat': '#10B981', 'Overstock': '#F59E0B'}
+        _ostatus_emoji = {'Understock': '🔴 Understock', 'Sehat': '🟢 Optimal', 'Overstock': '🟠 Overstock'}
+
+        df_off_inv = df_off_inv.copy()
+        _st_series = df_off_inv['Stock_Cover'].apply(_off_status)
+        df_off_inv['Status'] = _st_series.map(_ostatus_emoji)
+
+        _bl = df_off_inv['Stock_Onhand'].sum() / df_off_inv['Avg_Sales'].sum() if df_off_inv['Avg_Sales'].sum() > 0 else 0
+        ok1, ok2, ok3, ok4 = st.columns(4)
+        ok1.metric("🏪 Total Store", f"{len(df_off_inv)}")
+        ok2.metric("🔴 Understock", f"{int((_st_series == 'Understock').sum())} store", help=f"Cover < {off_under:.1f} bulan")
+        ok3.metric("🟠 Overstock", f"{int((_st_series == 'Overstock').sum())} store", help=f"Cover > {off_over:.1f} bulan")
+        ok4.metric("Blended Coverage", f"{_bl:.1f} bulan", help="Total on-hand ÷ total avg sales")
+
+        st.markdown("#### 📋 Ringkasan Inventory per Store")
+        _disp = df_off_inv[['Store', 'Stock_Onhand', 'Avg_Sales', 'Stock_Cover', 'Status']].copy()
+        try:
+            _osty = (_disp.style
+                     .background_gradient(subset=['Stock_Onhand'], cmap='Greens')
+                     .background_gradient(subset=['Avg_Sales'], cmap='Purples')
+                     .format({'Stock_Onhand': '{:,.0f}', 'Avg_Sales': '{:,.0f}', 'Stock_Cover': '{:.1f}'}))
+            st.dataframe(_osty, use_container_width=True, hide_index=True)
+        except Exception:
+            st.dataframe(_disp, use_container_width=True, hide_index=True)
+
+        st.markdown("#### 📊 Stock Coverage per Store")
+        _cbar = df_off_inv.sort_values('Stock_Cover').copy()
+        _ccolors = [_ostatus_color[_off_status(c)] for c in _cbar['Stock_Cover']]
+        fig_off_cov = go.Figure(go.Bar(
+            x=_cbar['Stock_Cover'], y=_cbar['Store'], orientation='h', marker_color=_ccolors,
+            text=[f"{c:.1f}" for c in _cbar['Stock_Cover']], textposition='outside',
+            customdata=_cbar[['Stock_Onhand', 'Avg_Sales']].values,
+            hovertemplate="<b>%{y}</b><br>Coverage: %{x:.1f} bulan<br>On-hand: %{customdata[0]:,.0f}<br>Avg sales: %{customdata[1]:,.0f}<extra></extra>"
+        ))
+        fig_off_cov.add_vline(x=off_under, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Min {off_under:.0f}")
+        fig_off_cov.add_vline(x=off_over, line_dash="dot", line_color="#9CA3AF", annotation_text=f"Overstock {off_over:.0f}")
+        fig_off_cov.update_layout(height=max(260, len(_cbar) * 70), plot_bgcolor='white', xaxis_title="Months of coverage",
+                                  yaxis=dict(autorange="reversed"), margin=dict(t=20, b=10, l=10, r=50))
+        st.plotly_chart(fig_off_cov, use_container_width=True)
+
+        oc1, oc2 = st.columns(2)
+        with oc1:
+            st.markdown("#### 📈 Tren Sales Bulanan")
+            if not df_off_sales.empty:
+                _s = df_off_sales.dropna(subset=['Month_Date']).sort_values('Month_Date')
+                _order = _s.drop_duplicates('Month_Label')['Month_Label'].tolist()
+                fig_os = go.Figure()
+                for _stq in _s['Store'].unique():
+                    _sd = _s[_s['Store'] == _stq]
+                    fig_os.add_trace(go.Scatter(x=_sd['Month_Label'], y=_sd['Sales'], name=_stq, mode='lines+markers'))
+                fig_os.update_layout(height=360, plot_bgcolor='white', yaxis_title="Sales (qty)",
+                                     xaxis=dict(categoryorder='array', categoryarray=_order),
+                                     legend=dict(orientation='h', y=1.15, x=0.5, xanchor='center'), margin=dict(t=30, b=10, l=10, r=10))
+                st.plotly_chart(fig_os, use_container_width=True)
+            else:
+                st.info("Data sales offline belum tersedia.")
+        with oc2:
+            st.markdown("#### 📦 Replenishment (Outbound) Bulanan")
+            if not df_off_out.empty:
+                _o = df_off_out.dropna(subset=['Month_Date']).sort_values('Month_Date')
+                _order2 = _o.drop_duplicates('Month_Label')['Month_Label'].tolist()
+                fig_oo = go.Figure()
+                for _stq in _o['Store'].unique():
+                    _od = _o[_o['Store'] == _stq]
+                    fig_oo.add_trace(go.Bar(x=_od['Month_Label'], y=_od['Outbound'], name=_stq))
+                fig_oo.update_layout(height=360, plot_bgcolor='white', barmode='group', yaxis_title="Outbound (qty)",
+                                     xaxis=dict(categoryorder='array', categoryarray=_order2),
+                                     legend=dict(orientation='h', y=1.15, x=0.5, xanchor='center'), margin=dict(t=30, b=10, l=10, r=10))
+                st.plotly_chart(fig_oo, use_container_width=True)
+            else:
+                st.info("Data outbound offline belum tersedia.")
+
+        _ov_stores = df_off_inv[_st_series.values == 'Overstock']
+        if not _ov_stores.empty:
+            _nm = ", ".join([f"{r['Store']} ({r['Stock_Cover']:.1f} bln)" for _, r in _ov_stores.iterrows()])
+            st.markdown(f"""
+<div style="background:#FEF3C7; border-left:5px solid #F59E0B; padding:14px 18px; border-radius:10px; margin-top:8px;">
+<div style="font-weight:800; color:#1F2937;">🟠 Overstock terdeteksi</div>
+<div style="font-size:0.88rem; color:#374151; margin-top:4px;">{_nm} — coverage jauh di atas ambang. Pertimbangkan tahan replenishment & dorong sell-through.</div>
 </div>
 """, unsafe_allow_html=True)
 
