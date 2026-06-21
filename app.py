@@ -6359,15 +6359,17 @@ with tab10:
         st.warning("⚠️ Data 'BS_Fullfilment_Cost' belum tersedia.")
 
 
-def _render_expansi_cost():
+def _render_expansi_cost(sel=None):
     # ==============================================================================
-    # EXPANSI FULFILLMENT COST (dipindah ke tab Expansi Analytics)
+    # EXPANSI FULFILLMENT COST (sub-tab di Expansi Analytics)
     # ==============================================================================
-    st.divider()
-    st.subheader("🏪 Expansi Fulfillment Cost Analysis")
-    st.caption("Deep-dive analisis biaya fulfillment per store/cabang — Efficiency Grading, Cost Contribution, Growth Scaling, dan Actionable Recommendations.")
+    st.subheader("🏪 Fulfillment Cost — per Store")
+    st.caption("Deep-dive biaya fulfillment per store/cabang — Efficiency Grading, Cost Contribution, Growth Scaling.")
 
     df_exp = all_data.get('expansi_fulfillment', pd.DataFrame())
+    if sel is not None and not df_exp.empty and 'Store' in df_exp.columns:
+        _cs = set(('PCA' if str(s).upper().startswith('PCA') else str(s).strip()) for s in sel)
+        df_exp = df_exp[df_exp['Store'].astype(str).str.strip().isin(_cs)]
 
     if not df_exp.empty:
 
@@ -6417,50 +6419,8 @@ def _render_expansi_cost():
             if abs(v) >= 1e6: return f"Rp {v/1e6:,.1f} Jt"
             return f"Rp {v:,.0f}"
 
-        st.markdown("### 📊 Expansi Fulfillment Overview")
+        # KPI cards Total Cost/GMV/Orders/%Cost/CPO dipindah ke sub-tab Overview (dedup)
 
-        st.markdown("""
-<style>
-.exp-card {
-border-radius: 14px; padding: 1.2rem; color: white;
-box-shadow: 0 4px 12px rgba(0,0,0,0.06); position: relative;
-overflow: hidden; transition: transform 0.3s ease;
-}
-.exp-card:hover { transform: translateY(-3px); box-shadow: 0 8px 22px rgba(0,0,0,0.12); }
-.exp-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.92; margin-bottom: 5px; }
-.exp-val { font-size: 1.6rem; font-weight: 800; margin-bottom: 2px; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-.exp-sub { font-size: 0.82rem; font-weight: 500; opacity: 0.95; display:flex; align-items:center; gap:5px; }
-.exp-pill { background: rgba(255,255,255,0.22); padding: 2px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; backdrop-filter: blur(4px); }
-</style>
-""", unsafe_allow_html=True)
-
-        def _exp_card(title, val, delta_str, sub_text, gradient):
-            return f"""
-<div class="exp-card" style="background:{gradient};">
-<div class="exp-label">{title}</div>
-<div class="exp-val">{val}</div>
-<div class="exp-sub"><span class="exp-pill">{delta_str}</span> {sub_text}</div>
-</div>"""
-
-        ec1, ec2, ec3, ec4, ec5 = st.columns(5)
-        with ec1:
-            arrow_c = "▲" if d_cost > 0 else "▼" if d_cost < 0 else "—"
-            st.markdown(_exp_card("Total Cost", _fmt_rp_short(total_cost_exp), f"{arrow_c} {abs(d_cost):.1f}%", "MoM Change", "linear-gradient(135deg, #ef5350 0%, #c62828 100%)"), unsafe_allow_html=True)
-        with ec2:
-            arrow_g = "▲" if d_gmv > 0 else "▼" if d_gmv < 0 else "—"
-            st.markdown(_exp_card("Total GMV", _fmt_rp_short(total_gmv_exp), f"{arrow_g} {abs(d_gmv):.1f}%", "MoM Change", "linear-gradient(135deg, #42a5f5 0%, #1565c0 100%)"), unsafe_allow_html=True)
-        with ec3:
-            arrow_o = "▲" if d_orders > 0 else "▼" if d_orders < 0 else "—"
-            st.markdown(_exp_card("Total Orders", f"{total_orders_exp:,.0f}", f"{arrow_o} {abs(d_orders):.1f}%", "MoM Change", "linear-gradient(135deg, #7e57c2 0%, #4527a0 100%)"), unsafe_allow_html=True)
-        with ec4:
-            arrow_p = "▲" if d_pct > 0 else "▼" if d_pct < 0 else "—"
-            pct_col = "linear-gradient(135deg, #66bb6a 0%, #2e7d32 100%)" if pct_last < avg_cost_pct_exp else "linear-gradient(135deg, #ffa726 0%, #e65100 100%)"
-            st.markdown(_exp_card("Avg %Cost", f"{avg_cost_pct_exp:.2f}%", f"{arrow_p} {abs(d_pct):.2f}pp", "MoM Change", pct_col), unsafe_allow_html=True)
-        with ec5:
-            arrow_cp = "▲" if d_cpo > 0 else "▼" if d_cpo < 0 else "—"
-            st.markdown(_exp_card("Avg CPO", f"Rp {avg_cpo_exp:,.0f}", f"{arrow_cp} {abs(d_cpo):.1f}%", "MoM Change", "linear-gradient(135deg, #26a69a 0%, #00695c 100%)"), unsafe_allow_html=True)
-
-        st.divider()
         st.subheader("🏆 Store Efficiency Scorecard")
         st.caption("Grading otomatis setiap store berdasarkan %Cost Ratio — **A** (Excellent) hingga **D** (Critical).")
 
@@ -6728,123 +6688,130 @@ overflow: hidden; transition: transform 0.3s ease;
         st.info("ℹ️ Data 'Expansi_Fullfilment_Cost' belum tersedia. Silakan tambahkan sheet dengan kolom: Store, Month, Total Cost, GMV, Order_Qty, BSA, %Cost, Cost_per_Order")
 
 
-def _render_expansi_inventory():
-    # ==============================================================================
-    # EXPANSI STORE 360 — Inventory & Distribution (dipindah ke tab Expansi Analytics)
-    # ==============================================================================
-    st.divider()
-    st.subheader("🔗 Expansi Store 360: Outbound → Stock → Cost")
-    st.caption("Korelasi 3 sheet pada kunci Store — volume replenishment (Outbound), kesehatan stok (Inventory Branch), & biaya fulfillment (%Cost). Fokus 7 store ekspansi. PCA = gabungan Bandung + Yogyakarta (cost hanya tersedia gabungan).")
+def _render_expansi():
+    st.subheader("🏬 Expansi Analytics")
+    st.caption("Analitik channel ekspansi: kesehatan stok, distribusi (outbound/replenishment), & biaya fulfillment. PCA = gabungan Bandung + Yogyakarta untuk biaya.")
 
     df_invb = all_data.get('inventory_branch', pd.DataFrame())
     df_out_long = all_data.get('outbound_replen', pd.DataFrame())
     df_cost_src = all_data.get('expansi_fulfillment', pd.DataFrame())
 
     if df_invb.empty or df_out_long.empty:
-        st.info("ℹ️ Section ini butuh sheet **'Inventory Branch'** & **'Expansi Replenishment(Outbound)'**. Pastikan keduanya sudah ada di Google Sheets (kolom Branch Store + data bulanan).")
-    else:
-        # ---- 7 store ekspansi = semua Inventory Branch kecuali Blibli ----
-        inv7 = df_invb[~df_invb['Store'].str.contains('Blibli', case=False, na=False)].copy()
-        for _c in ['Stock_Onhand', 'Replenishment', 'Avg_Sales', 'Month_Cover']:
-            if _c not in inv7.columns:
-                inv7[_c] = 0
-        stores7 = inv7['Store'].unique().tolist()
-        out7 = df_out_long[df_out_long['Store'].isin(stores7)].copy()
+        st.info("ℹ️ Butuh sheet **'Inventory Branch'** & **'Expansi Replenishment(Outbound)'**.")
+        return
 
-        # ---- CostKey: PCA Bandung/Yogya digabung jadi 'PCA' (hybrid) ----
-        def _cost_key(s):
-            s = str(s).strip()
-            return 'PCA' if s.upper().startswith('PCA') else s
-        inv7['CostKey'] = inv7['Store'].apply(_cost_key)
-        out7['CostKey'] = out7['Store'].apply(_cost_key)
+    # ---- GLOBAL FILTER: union semua store/channel dari 3 sheet ----
+    _all_stores = sorted(set(df_invb['Store'].astype(str)) | set(df_out_long['Store'].astype(str)) | (
+        set(df_cost_src['Store'].astype(str).str.strip()) if (not df_cost_src.empty and 'Store' in df_cost_src.columns) else set()))
+    sel = st.multiselect("🔎 Filter store / channel (kosong = semua):", _all_stores, default=_all_stores, key="exp_global_filter")
+    if not sel:
+        sel = _all_stores
 
-        # ---- Ambang coverage per lead time: PCA/retail butuh coverage lebih tinggi ----
-        with st.expander("⚙️ Pengaturan ambang coverage (sesuaikan lead time)", expanded=False):
-            _ct1, _ct2, _ct3 = st.columns(3)
-            under_thr = _ct1.number_input("Understock di bawah (bulan)", 0.0, 5.0, 1.0, 0.1, key="cov_under_thr")
-            mp_over_thr = _ct2.number_input("Overstock marketplace di atas (bulan)", 1.0, 6.0, 2.0, 0.1, key="cov_mp_thr")
-            pca_over_thr = _ct3.number_input("Overstock PCA / retail di atas (bulan)", 1.0, 8.0, 3.0, 0.1, key="cov_pca_thr",
-                                             help="Lead time PCA lebih panjang, jadi coverage lebih tinggi masih dianggap wajar.")
+    # ---- Ambang coverage per lead time ----
+    with st.expander("⚙️ Pengaturan ambang coverage (sesuaikan lead time)", expanded=False):
+        _ct1, _ct2, _ct3 = st.columns(3)
+        under_thr = _ct1.number_input("Understock di bawah (bulan)", 0.0, 5.0, 1.0, 0.1, key="cov_under_thr")
+        mp_over_thr = _ct2.number_input("Overstock marketplace di atas (bulan)", 1.0, 6.0, 2.0, 0.1, key="cov_mp_thr")
+        pca_over_thr = _ct3.number_input("Overstock PCA / retail di atas (bulan)", 1.0, 8.0, 3.0, 0.1, key="cov_pca_thr",
+                                         help="Lead time PCA lebih panjang, coverage lebih tinggi masih wajar.")
 
-        def _over_thr(store):
-            return pca_over_thr if str(store).upper().startswith('PCA') else mp_over_thr
+    def _cost_key(s):
+        s = str(s).strip()
+        return 'PCA' if s.upper().startswith('PCA') else s
 
-        def _cover_status(store, cover):
-            if cover < under_thr:
-                return 'Understock'
-            return 'Sehat' if cover <= _over_thr(store) else 'Overstock'
+    def _over_thr(store):
+        return pca_over_thr if str(store).upper().startswith('PCA') else mp_over_thr
 
-        _status_color = {'Understock': '#EF4444', 'Sehat': '#10B981', 'Overstock': '#F59E0B'}
-        _status_color_light = {'Understock': '#FCEBEB', 'Sehat': '#EAF3DE', 'Overstock': '#FAEEDA'}
-        _status_emoji = {'Understock': '🔴 Understock', 'Sehat': '🟢 Optimal', 'Overstock': '🟠 Overstock'}
+    def _cover_status(store, cover):
+        if cover < under_thr:
+            return 'Understock'
+        return 'Sehat' if cover <= _over_thr(store) else 'Overstock'
 
-        grade_colors360 = {'A': '#10B981', 'B': '#3B82F6', 'C': '#F59E0B', 'D': '#EF4444'}
-        def _grade360(p):
-            if p <= 3: return 'A'
-            if p <= 5: return 'B'
-            if p <= 8: return 'C'
-            return 'D'
+    def _rp_short(v):
+        if abs(v) >= 1e9: return f"Rp {v/1e9:,.1f} M"
+        if abs(v) >= 1e6: return f"Rp {v/1e6:,.1f} Jt"
+        return f"Rp {v:,.0f}"
 
-        # ---- Cost summary per entity (PCA combined) ----
-        cost_ce = pd.DataFrame()
-        if not df_cost_src.empty and 'Store' in df_cost_src.columns:
-            _tmp = df_cost_src.copy()
-            _tmp['Store'] = _tmp['Store'].astype(str).str.strip()
-            for _c in ['Total Cost', 'GMV', 'Order_Qty', 'BSA']:
-                if _c in _tmp.columns:
-                    _tmp[_c] = pd.to_numeric(_tmp[_c], errors='coerce').fillna(0)
+    _status_color = {'Understock': '#EF4444', 'Sehat': '#10B981', 'Overstock': '#F59E0B'}
+    _status_color_light = {'Understock': '#FCEBEB', 'Sehat': '#EAF3DE', 'Overstock': '#FAEEDA'}
+    _status_emoji = {'Understock': '🔴 Understock', 'Sehat': '🟢 Optimal', 'Overstock': '🟠 Overstock'}
+    grade_colors360 = {'A': '#10B981', 'B': '#3B82F6', 'C': '#F59E0B', 'D': '#EF4444'}
+
+    def _grade360(p):
+        if p <= 3: return 'A'
+        if p <= 5: return 'B'
+        if p <= 8: return 'C'
+        return 'D'
+
+    # ---- Apply filter ----
+    inv7 = df_invb[df_invb['Store'].isin(sel) & ~df_invb['Store'].str.contains('Blibli', case=False, na=False)].copy()
+    for _c in ['Stock_Onhand', 'Replenishment', 'Avg_Sales', 'Month_Cover']:
+        if _c not in inv7.columns:
+            inv7[_c] = 0
+    out_f = df_out_long[df_out_long['Store'].isin(sel)].copy()
+    out7 = out_f[out_f['Store'].isin(inv7['Store'].unique())].copy()
+    inv7['CostKey'] = inv7['Store'].apply(_cost_key)
+    out7['CostKey'] = out7['Store'].apply(_cost_key)
+    _cost_sel = set(_cost_key(s) for s in sel)
+
+    # ---- Cost per entity (PCA combined, filtered) ----
+    cost_ce = pd.DataFrame()
+    if not df_cost_src.empty and 'Store' in df_cost_src.columns:
+        _tmp = df_cost_src.copy()
+        _tmp['Store'] = _tmp['Store'].astype(str).str.strip()
+        _tmp = _tmp[_tmp['Store'].isin(_cost_sel)]
+        for _c in ['Total Cost', 'GMV', 'Order_Qty', 'BSA']:
+            if _c in _tmp.columns:
+                _tmp[_c] = pd.to_numeric(_tmp[_c], errors='coerce').fillna(0)
+        if not _tmp.empty:
             cost_ce = _tmp.groupby('Store').agg(
-                Total_Cost=('Total Cost', 'sum'),
-                GMV=('GMV', 'sum'),
-                Orders=('Order_Qty', 'sum'),
-                BSA=('BSA', 'mean')
-            ).reset_index()
+                Total_Cost=('Total Cost', 'sum'), GMV=('GMV', 'sum'),
+                Orders=('Order_Qty', 'sum'), BSA=('BSA', 'mean')).reset_index()
             cost_ce['PctCost'] = np.where(cost_ce['GMV'] > 0, cost_ce['Total_Cost'] / cost_ce['GMV'] * 100, np.nan)
             cost_ce['Grade'] = cost_ce['PctCost'].apply(lambda p: _grade360(p) if pd.notna(p) else '-')
+            cost_ce['CPO'] = np.where(cost_ce['Orders'] > 0, cost_ce['Total_Cost'] / cost_ce['Orders'], 0)
 
-        # ---- Entity-level inventory + outbound (PCA combined) ----
-        inv_ce = inv7.groupby('CostKey').agg(
-            Stock=('Stock_Onhand', 'sum'),
-            Replen=('Replenishment', 'sum'),
-            AvgSales=('Avg_Sales', 'sum')
-        ).reset_index()
-        inv_ce['Cover'] = np.where(inv_ce['AvgSales'] > 0, inv_ce['Stock'] / inv_ce['AvgSales'], 0)
+    # ---- Store 360 (entity, PCA combined) ----
+    inv_ce = inv7.groupby('CostKey').agg(Stock=('Stock_Onhand', 'sum'), Replen=('Replenishment', 'sum'), AvgSales=('Avg_Sales', 'sum')).reset_index()
+    inv_ce['Cover'] = np.where(inv_ce['AvgSales'] > 0, inv_ce['Stock'] / inv_ce['AvgSales'], 0)
+    out_ce_total = out7.groupby('CostKey')['Outbound_Qty'].sum().reset_index().rename(columns={'Outbound_Qty': 'OutboundTotal'})
+    out_ce_month = out7.groupby(['CostKey', 'Month_Date'])['Outbound_Qty'].sum().reset_index().sort_values('Month_Date')
+    spark_map = out_ce_month.groupby('CostKey')['Outbound_Qty'].apply(list)
+    store360 = inv_ce.merge(out_ce_total, on='CostKey', how='left')
+    store360['OutboundTotal'] = store360['OutboundTotal'].fillna(0)
+    if not cost_ce.empty:
+        store360 = store360.merge(cost_ce[['Store', 'PctCost', 'Grade', 'BSA', 'CPO']], left_on='CostKey', right_on='Store', how='left').drop(columns=['Store'])
+    else:
+        store360['PctCost'] = np.nan; store360['Grade'] = '-'; store360['BSA'] = np.nan; store360['CPO'] = np.nan
+    store360['Outbound_Trend'] = store360['CostKey'].map(spark_map).apply(lambda x: x if isinstance(x, list) else [])
+    store360['Status'] = store360.apply(lambda r: _status_emoji[_cover_status(r['CostKey'], r['Cover'])], axis=1)
+    store360['_proj'] = np.where(store360['AvgSales'] > 0, (store360['Stock'] + store360['Replen']) / store360['AvgSales'], 0)
+    store360 = store360.sort_values('Cover').reset_index(drop=True)
+    inv7['_cstatus'] = inv7.apply(lambda r: _cover_status(r['Store'], r['Month_Cover']), axis=1)
 
-        out_ce_total = out7.groupby('CostKey')['Outbound_Qty'].sum().reset_index().rename(columns={'Outbound_Qty': 'OutboundTotal'})
-        out_ce_month = out7.groupby(['CostKey', 'Month_Date'])['Outbound_Qty'].sum().reset_index().sort_values('Month_Date')
-        spark_map = out_ce_month.groupby('CostKey')['Outbound_Qty'].apply(list)
+    sub_ov, sub_dist, sub_cost = st.tabs(["📊 Overview & Actions", "📦 Distribution & Inventory", "💰 Fulfillment Cost"])
 
-        store360 = inv_ce.merge(out_ce_total, on='CostKey', how='left')
-        store360['OutboundTotal'] = store360['OutboundTotal'].fillna(0)
-        if not cost_ce.empty:
-            store360 = store360.merge(cost_ce[['Store', 'PctCost', 'Grade', 'BSA', 'Orders']],
-                                      left_on='CostKey', right_on='Store', how='left').drop(columns=['Store'])
-        else:
-            store360['PctCost'] = np.nan
-            store360['Grade'] = '-'
-        store360['Outbound_Trend'] = store360['CostKey'].map(spark_map).apply(lambda x: x if isinstance(x, list) else [])
-        store360['Status'] = store360.apply(lambda r: _status_emoji[_cover_status(r['CostKey'], r['Cover'])], axis=1)
-        store360 = store360.sort_values('Cover').reset_index(drop=True)
-
-        # ===== KPI ringkas (7 cabang, split; status pakai ambang lead time) =====
-        inv7 = inv7.copy()
-        inv7['_cstatus'] = inv7.apply(lambda r: _cover_status(r['Store'], r['Month_Cover']), axis=1)
-        n_under = int((inv7['_cstatus'] == 'Understock').sum())
-        n_health = int((inv7['_cstatus'] == 'Sehat').sum())
-        n_over = int((inv7['_cstatus'] == 'Overstock').sum())
+    # ============================ OVERVIEW & ACTIONS ============================
+    with sub_ov:
         _sum_avg = inv7['Avg_Sales'].sum()
         blended = inv7['Stock_Onhand'].sum() / _sum_avg if _sum_avg > 0 else 0
         blended_proj = (inv7['Stock_Onhand'].sum() + inv7['Replenishment'].sum()) / _sum_avg if _sum_avg > 0 else 0
         k1, k2, k3, k4 = st.columns(4)
-        k1.metric("🔴 Understock", f"{n_under} cabang", help=f"Coverage di bawah {under_thr:.1f} bulan — risiko stockout")
-        k2.metric("🟢 Optimal", f"{n_health} cabang", help="Coverage dalam rentang target (disesuaikan lead time)")
-        k3.metric("🟠 Overstock", f"{n_over} cabang", help="Coverage melebihi ambang lead time — modal mengendap")
-        k4.metric("Blended Coverage", f"{blended:.1f} bulan", delta=f"proyeksi {blended_proj:.1f} bln pasca-replenishment", delta_color="off", help="Total stok ÷ total avg sales. Delta = proyeksi setelah rencana replenishment.")
+        k1.metric("🔴 Understock", f"{int((inv7['_cstatus'] == 'Understock').sum())} cabang", help=f"Coverage < {under_thr:.1f} bln")
+        k2.metric("🟢 Optimal", f"{int((inv7['_cstatus'] == 'Sehat').sum())} cabang")
+        k3.metric("🟠 Overstock", f"{int((inv7['_cstatus'] == 'Overstock').sum())} cabang")
+        k4.metric("Blended Coverage", f"{blended:.1f} bln", delta=f"proyeksi {blended_proj:.1f} bln", delta_color="off")
+        if not cost_ce.empty:
+            _tc = cost_ce['Total_Cost'].sum(); _gmv = cost_ce['GMV'].sum(); _ord = cost_ce['Orders'].sum()
+            cc1, cc2, cc3, cc4 = st.columns(4)
+            cc1.metric("Total GMV", _rp_short(_gmv))
+            cc2.metric("Total Cost", _rp_short(_tc))
+            cc3.metric("Avg %Cost", f"{(_tc / _gmv * 100) if _gmv > 0 else 0:.2f}%")
+            cc4.metric("Avg CPO", f"Rp {(_tc / _ord) if _ord > 0 else 0:,.0f}")
 
-        # ===== Store 360 Scorecard (PCA combined) =====
         st.markdown("#### 📋 Store 360 Scorecard")
-        st.caption("Gabungan ketiga sheet per store (PCA digabung). Diurutkan dari cover terendah. Sparkline = outbound per bulan.")
-        tbl = store360[['CostKey', 'Outbound_Trend', 'OutboundTotal', 'Stock', 'Replen', 'Cover', 'Status', 'PctCost', 'Grade']].copy()
+        st.caption("Gabungan 3 sheet per store (PCA digabung untuk cost). Diurutkan dari coverage terendah. Sparkline = outbound per bulan.")
+        tbl = store360[['CostKey', 'Outbound_Trend', 'OutboundTotal', 'Stock', 'Replen', 'Cover', 'Status', 'PctCost', 'Grade', 'CPO', 'BSA']].copy()
         cfg360 = {
             'CostKey': st.column_config.TextColumn('Store'),
             'OutboundTotal': st.column_config.NumberColumn('Total Out', format="%.0f"),
@@ -6854,148 +6821,137 @@ def _render_expansi_inventory():
             'Status': st.column_config.TextColumn('Status'),
             'PctCost': st.column_config.NumberColumn('%Cost', format="%.1f%%"),
             'Grade': st.column_config.TextColumn('Grade'),
+            'CPO': st.column_config.NumberColumn('CPO', format="Rp %.0f"),
+            'BSA': st.column_config.NumberColumn('BSA', format="Rp %.0f"),
         }
         try:
-            cfg360['Outbound_Trend'] = st.column_config.BarChartColumn('Outbound Jan–Mei', y_min=0)
+            cfg360['Outbound_Trend'] = st.column_config.BarChartColumn('Outbound', y_min=0)
         except Exception:
             tbl = tbl.drop(columns=['Outbound_Trend'])
         st.dataframe(tbl, use_container_width=True, hide_index=True, column_config=cfg360)
 
-        # ===== Inventory coverage: posisi saat ini vs proyeksi pasca-replenishment =====
-        st.markdown("#### 📊 Inventory Coverage per Cabang — Posisi Saat Ini vs Proyeksi Pasca-Replenishment")
-        st.caption("Batang penuh = coverage stok saat ini; batang transparan = tambahan dari rencana replenishment (inbound). Total batang = proyeksi coverage setelah inbound diterima. Ambang overstock disesuaikan lead time tiap cabang (PCA lebih panjang → toleransi lebih tinggi).")
+        if not cost_ce.empty and store360['PctCost'].notna().any():
+            st.markdown("#### ⚖️ Korelasi: Coverage vs %Cost")
+            st.caption("Sumbu Y = %Cost (efisiensi); X = coverage; bubble = volume outbound. Garis putus = ambang overstock (lead time).")
+            q = store360.dropna(subset=['PctCost']).copy()
+            avg_pct = q['PctCost'].mean()
+            fig_q = px.scatter(q, x='Cover', y='PctCost', size='OutboundTotal', color='Grade', text='CostKey',
+                               size_max=55, color_discrete_map=grade_colors360, custom_data=['CostKey', 'OutboundTotal', 'Stock'])
+            fig_q.add_vline(x=mp_over_thr, line_dash="dot", line_color="#9CA3AF", annotation_text=f"MP {mp_over_thr:.0f}")
+            fig_q.add_vline(x=pca_over_thr, line_dash="dot", line_color="#C2853A", annotation_text=f"PCA {pca_over_thr:.0f}")
+            fig_q.add_hline(y=avg_pct, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Avg %Cost {avg_pct:.1f}%")
+            fig_q.update_traces(textposition='top center', textfont=dict(size=11),
+                                hovertemplate="<b>%{customdata[0]}</b><br>Cover: %{x:.1f} bln<br>%Cost: %{y:.1f}%<br>Outbound: %{customdata[1]:,.0f}<br>Stock: %{customdata[2]:,.0f}<extra></extra>")
+            fig_q.update_layout(height=440, plot_bgcolor='white', xaxis_title="Coverage (bln) →",
+                                yaxis=dict(title="% Cost →", ticksuffix="%"), margin=dict(t=20, b=10, l=10, r=10))
+            st.plotly_chart(fig_q, use_container_width=True)
+
+        st.markdown("#### 💡 Rekomendasi & Insight")
+        ins360 = []
+        if not cost_ce.empty and store360['PctCost'].notna().any():
+            for _, r in store360[store360['Grade'].isin(['C', 'D'])].sort_values('PctCost', ascending=False).iterrows():
+                ins360.append(("💸", f"{r['CostKey']}: biaya fulfillment tinggi",
+                               f"%Cost <b>{r['PctCost']:.1f}%</b> (Grade {r['Grade']}). Coverage {r['Cover']:.1f} bln masih wajar untuk lead time-nya — fokus ke <b>efisiensi biaya</b>, bukan menahan stok.",
+                               "#FEF3C7", "#F59E0B"))
+        under_now = store360[store360['Status'].str.contains('Understock')].copy()
+        if not under_now.empty:
+            _names = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['_proj']:.1f})" for _, row in under_now.iterrows()])
+            ins360.append(("📈", "Coverage rendah — terbantu replenishment",
+                           f"<b>{len(under_now)} cabang</b> di bawah ambang, tapi rencana replen mengangkat proyeksi (saat ini→proyeksi): {_names}. <b>Action:</b> pastikan inbound on-track.",
+                           "#D1FAE5", "#10B981"))
+        over_plan = store360[(~store360['Status'].str.contains('Understock')) & (store360['_proj'] > store360['CostKey'].apply(_over_thr))].copy()
+        if not over_plan.empty:
+            _names2 = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['_proj']:.1f})" for _, row in over_plan.iterrows()])
+            ins360.append(("⚠️", "Tinjau alokasi replenishment",
+                           f"<b>{len(over_plan)} cabang</b> proyeksi coverage-nya melewati ambang lead time: {_names2}. <b>Action:</b> pertimbangkan tahan/kurangi alokasi.",
+                           "#FEE2E2", "#EF4444"))
+        if not ins360:
+            ins360.append(("✅", "Kondisi seimbang", "Seluruh cabang dalam parameter wajar.", "#D1FAE5", "#10B981"))
+        for icon, title, desc, bg, border in ins360:
+            st.markdown(f"""<div style="background:{bg}; border-left:5px solid {border}; padding:14px 18px; border-radius:10px; margin-bottom:10px;"><div style="font-weight:800; color:#1F2937; display:flex; align-items:center; gap:8px; font-size:0.95rem;"><span style="font-size:1.2rem;">{icon}</span> {title}</div><div style="font-size:0.88rem; color:#374151; margin-left:32px; margin-top:4px;">{desc}</div></div>""", unsafe_allow_html=True)
+
+    # ========================= DISTRIBUTION & INVENTORY =========================
+    with sub_dist:
+        st.markdown("#### 📊 Inventory Coverage per Cabang — Saat Ini vs Proyeksi Pasca-Replenishment")
+        st.caption("Batang penuh = coverage saat ini; batang transparan = tambahan rencana replenishment. Total = proyeksi. Ambang overstock disesuaikan lead time.")
         cb = inv7.sort_values('Month_Cover').copy()
         cb['Cover_Now'] = np.where(cb['Avg_Sales'] > 0, cb['Stock_Onhand'] / cb['Avg_Sales'], 0)
         cb['Cover_Replen'] = np.where(cb['Avg_Sales'] > 0, cb['Replenishment'] / cb['Avg_Sales'], 0)
         cb['Cover_Proj'] = cb['Cover_Now'] + cb['Cover_Replen']
         _now_colors = [_status_color[_cover_status(s, c)] for s, c in zip(cb['Store'], cb['Cover_Now'])]
         fig_cov = go.Figure()
-        fig_cov.add_trace(go.Bar(
-            y=cb['Store'], x=cb['Cover_Now'], orientation='h', name='Coverage saat ini',
-            marker_color=_now_colors,
-            text=[f"{c:.1f}" for c in cb['Cover_Now']], textposition='inside', insidetextanchor='middle', textfont=dict(size=10, color='white'),
-            customdata=cb[['Stock_Onhand', 'Avg_Sales']].values,
-            hovertemplate="<b>%{y}</b><br>Coverage saat ini: %{x:.1f} bulan<br>On-hand: %{customdata[0]:,.0f}<br>Avg sales: %{customdata[1]:,.0f}<extra></extra>"
-        ))
-        fig_cov.add_trace(go.Bar(
-            y=cb['Store'], x=cb['Cover_Replen'], orientation='h', name='Tambahan replenishment (plan)',
-            marker_color='rgba(59,130,246,0.45)',
-            text=[f"+{c:.1f}" for c in cb['Cover_Replen']], textposition='inside', insidetextanchor='middle', textfont=dict(size=10),
-            customdata=cb[['Replenishment', 'Cover_Proj']].values,
-            hovertemplate="<b>%{y}</b><br>Qty replenishment: %{customdata[0]:,.0f}<br>Proyeksi coverage: %{customdata[1]:.1f} bulan<extra></extra>"
-        ))
+        fig_cov.add_trace(go.Bar(y=cb['Store'], x=cb['Cover_Now'], orientation='h', name='Coverage saat ini', marker_color=_now_colors,
+                                 text=[f"{c:.1f}" for c in cb['Cover_Now']], textposition='inside', insidetextanchor='middle', textfont=dict(size=10, color='white'),
+                                 customdata=cb[['Stock_Onhand', 'Avg_Sales']].values,
+                                 hovertemplate="<b>%{y}</b><br>Coverage: %{x:.1f} bln<br>On-hand: %{customdata[0]:,.0f}<br>Avg sales: %{customdata[1]:,.0f}<extra></extra>"))
+        fig_cov.add_trace(go.Bar(y=cb['Store'], x=cb['Cover_Replen'], orientation='h', name='Tambahan replenishment (plan)', marker_color='rgba(59,130,246,0.45)',
+                                 text=[f"+{c:.1f}" for c in cb['Cover_Replen']], textposition='inside', insidetextanchor='middle', textfont=dict(size=10),
+                                 customdata=cb[['Replenishment', 'Cover_Proj']].values,
+                                 hovertemplate="<b>%{y}</b><br>Qty replenishment: %{customdata[0]:,.0f}<br>Proyeksi: %{customdata[1]:.1f} bln<extra></extra>"))
         fig_cov.add_vline(x=under_thr, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Min {under_thr:.0f}")
-        fig_cov.add_vline(x=mp_over_thr, line_dash="dot", line_color="#9CA3AF", annotation_text=f"Ambang MP {mp_over_thr:.0f}")
-        fig_cov.add_vline(x=pca_over_thr, line_dash="dot", line_color="#C2853A", annotation_text=f"Ambang PCA {pca_over_thr:.0f}")
+        fig_cov.add_vline(x=mp_over_thr, line_dash="dot", line_color="#9CA3AF", annotation_text=f"MP {mp_over_thr:.0f}")
+        fig_cov.add_vline(x=pca_over_thr, line_dash="dot", line_color="#C2853A", annotation_text=f"PCA {pca_over_thr:.0f}")
         fig_cov.update_layout(barmode='stack', height=380, plot_bgcolor='white', xaxis_title="Months of coverage",
-                              yaxis=dict(autorange="reversed"),
-                              legend=dict(orientation='h', y=1.12, x=0.5, xanchor='center'),
-                              margin=dict(t=30, b=10, l=10, r=60))
+                              yaxis=dict(autorange="reversed"), legend=dict(orientation='h', y=1.12, x=0.5, xanchor='center'), margin=dict(t=30, b=10, l=10, r=60))
         st.plotly_chart(fig_cov, use_container_width=True)
 
-        # ===== Outbound replenishment — TABEL semua channel + konteks inventory =====
         st.markdown("#### 📦 Outbound Replenishment per Channel — dengan Konteks Inventory")
-        st.caption("Qty outbound (replenishment) seluruh channel per bulan, digabung dengan AVG sales, stok on-hand, coverage, & status inventory di sebelahnya. Tanda '—' = channel central yang tidak menyimpan stok cabang.")
-        ob = df_out_long.copy()
+        st.caption("Outbound semua channel per bulan + AVG sales, on-hand, coverage, status. '—' = channel central tanpa stok cabang.")
+        ob = out_f.copy()
         ob_month_order = ob.dropna(subset=['Month_Date']).drop_duplicates('Month_Label').sort_values('Month_Date')['Month_Label'].tolist()
         piv_ob = ob.pivot_table(index='Store', columns='Month_Label', values='Outbound_Qty', aggfunc='sum')
         piv_ob = piv_ob.reindex(columns=[m for m in ob_month_order if m in piv_ob.columns]).fillna(0)
         month_cols_disp = list(piv_ob.columns)
-        piv_ob['Total Outbound'] = piv_ob.sum(axis=1)
-        ob_tbl = piv_ob.reset_index().merge(
-            df_invb[['Store', 'Avg_Sales', 'Stock_Onhand', 'Month_Cover']], on='Store', how='left')
-        ob_tbl['Status'] = ob_tbl.apply(
-            lambda r: _status_emoji[_cover_status(r['Store'], r['Month_Cover'])] if pd.notna(r['Month_Cover']) else '—', axis=1)
-        ob_tbl = ob_tbl.rename(columns={'Avg_Sales': 'AVG Sales', 'Stock_Onhand': 'On-hand', 'Month_Cover': 'Coverage'})
-        ob_tbl = ob_tbl.sort_values('Total Outbound', ascending=False).reset_index(drop=True)
-        ob_tbl = ob_tbl[['Store'] + month_cols_disp + ['Total Outbound', 'AVG Sales', 'On-hand', 'Coverage', 'Status']]
+        if not piv_ob.empty:
+            piv_ob['Total Outbound'] = piv_ob.sum(axis=1)
+            ob_tbl = piv_ob.reset_index().merge(df_invb[['Store', 'Avg_Sales', 'Stock_Onhand', 'Month_Cover']], on='Store', how='left')
+            ob_tbl['Status'] = ob_tbl.apply(lambda r: _status_emoji[_cover_status(r['Store'], r['Month_Cover'])] if pd.notna(r['Month_Cover']) else '—', axis=1)
+            ob_tbl = ob_tbl.rename(columns={'Avg_Sales': 'AVG Sales', 'Stock_Onhand': 'On-hand', 'Month_Cover': 'Coverage'})
+            ob_tbl = ob_tbl.sort_values('Total Outbound', ascending=False).reset_index(drop=True)
+            ob_tbl = ob_tbl[['Store'] + month_cols_disp + ['Total Outbound', 'AVG Sales', 'On-hand', 'Coverage', 'Status']]
+            _num_fmt = {m: '{:,.0f}' for m in month_cols_disp}
+            _num_fmt.update({'Total Outbound': '{:,.0f}', 'AVG Sales': '{:,.0f}', 'On-hand': '{:,.0f}', 'Coverage': '{:.1f}'})
 
-        _num_fmt = {m: '{:,.0f}' for m in month_cols_disp}
-        _num_fmt.update({'Total Outbound': '{:,.0f}', 'AVG Sales': '{:,.0f}', 'On-hand': '{:,.0f}', 'Coverage': '{:.1f}'})
+            def _style_cov_row(row):
+                styles = [''] * len(row)
+                if pd.notna(row['Coverage']):
+                    styles[row.index.get_loc('Coverage')] = f"background-color: {_status_color_light[_cover_status(row['Store'], row['Coverage'])]};"
+                return styles
+            try:
+                _sty_ob = (ob_tbl.style.background_gradient(subset=['Total Outbound'], cmap='Blues')
+                           .background_gradient(subset=['On-hand'], cmap='Greens').background_gradient(subset=['AVG Sales'], cmap='Purples')
+                           .apply(_style_cov_row, axis=1).format(_num_fmt, na_rep='—'))
+                st.dataframe(_sty_ob, use_container_width=True, hide_index=True, height=min(560, 60 + len(ob_tbl) * 35))
+            except Exception as _e_tbl:
+                st.warning(f"Styling tabel gagal: {_e_tbl}")
+                st.dataframe(ob_tbl, use_container_width=True, hide_index=True)
 
-        def _style_cov_row(row):
-            styles = [''] * len(row)
-            if pd.notna(row['Coverage']):
-                styles[row.index.get_loc('Coverage')] = f"background-color: {_status_color_light[_cover_status(row['Store'], row['Coverage'])]};"
-            return styles
+        st.markdown("#### 📊 Outbound vs AVG Sales vs On-hand (per cabang)")
+        st.caption("Batang = outbound bulanan (sumbu kiri). Garis putus = AVG Sales (baseline). Garis titik = On-hand (sumbu kanan, level). Expansi tak punya sales bulanan per cabang.")
+        _stx = inv7['Store'].tolist()
+        if _stx:
+            _selx = st.selectbox("Pilih cabang:", _stx, key="exp_cmp_store")
+            _rowx = inv7[inv7['Store'] == _selx].iloc[0]
+            _odx = out_f[out_f['Store'] == _selx].dropna(subset=['Month_Date']).sort_values('Month_Date')
+            _mlx = _odx['Month_Label'].tolist()
+            fig_xc = go.Figure()
+            fig_xc.add_trace(go.Bar(x=_odx['Month_Label'], y=_odx['Outbound_Qty'], name='Outbound', marker_color='#10B981'))
+            fig_xc.add_hline(y=_rowx['Avg_Sales'], line_dash='dash', line_color='#6B7280', annotation_text=f"AVG Sales {_rowx['Avg_Sales']:,.0f}")
+            if _mlx:
+                fig_xc.add_trace(go.Scatter(x=_mlx, y=[_rowx['Stock_Onhand']] * len(_mlx), name='On-hand (level)', mode='lines',
+                                            line=dict(color='#F59E0B', width=2, dash='dot'), yaxis='y2'))
+            fig_xc.update_layout(height=400, plot_bgcolor='white', xaxis=dict(categoryorder='array', categoryarray=_mlx),
+                                 yaxis=dict(title='Outbound / bulan'), yaxis2=dict(title='On-hand (level)', overlaying='y', side='right', showgrid=False, rangemode='tozero'),
+                                 legend=dict(orientation='h', y=1.15, x=0.5, xanchor='center'), margin=dict(t=40, b=10, l=10, r=10))
+            st.plotly_chart(fig_xc, use_container_width=True)
 
-        try:
-            _sty_ob = (ob_tbl.style
-                       .background_gradient(subset=['Total Outbound'], cmap='Blues')
-                       .background_gradient(subset=['On-hand'], cmap='Greens')
-                       .background_gradient(subset=['AVG Sales'], cmap='Purples')
-                       .apply(_style_cov_row, axis=1)
-                       .format(_num_fmt, na_rep='—'))
-            st.dataframe(_sty_ob, use_container_width=True, hide_index=True, height=min(560, 60 + len(ob_tbl) * 35))
-        except Exception as _e_tbl:
-            st.warning(f"Styling tabel outbound gagal: {_e_tbl}")
-            st.dataframe(ob_tbl, use_container_width=True, hide_index=True)
+    # ============================= FULFILLMENT COST ============================
+    with sub_cost:
+        _render_expansi_cost(sel)
 
-        # ===== Quadrant korelasi: Cover vs %Cost (bubble = outbound) =====
-        if not cost_ce.empty and store360['PctCost'].notna().any():
-            st.markdown("#### ⚖️ Korelasi: Stock Cover vs %Cost")
-            st.caption("Sumbu Y = efisiensi biaya (%Cost); sumbu X = coverage; bubble = volume outbound. Perhatian utama: %Cost tinggi (atas). Garis putus-putus = ambang overstock yang disesuaikan lead time.")
-            q = store360.dropna(subset=['PctCost']).copy()
-            avg_pct = q['PctCost'].mean()
-            fig_q = px.scatter(q, x='Cover', y='PctCost', size='OutboundTotal', color='Grade',
-                               text='CostKey', size_max=55, color_discrete_map=grade_colors360,
-                               custom_data=['CostKey', 'OutboundTotal', 'Stock'])
-            fig_q.add_vline(x=mp_over_thr, line_dash="dot", line_color="#9CA3AF", annotation_text=f"Ambang MP {mp_over_thr:.0f}")
-            fig_q.add_vline(x=pca_over_thr, line_dash="dot", line_color="#C2853A", annotation_text=f"Ambang PCA {pca_over_thr:.0f}")
-            fig_q.add_hline(y=avg_pct, line_dash="dash", line_color="#9CA3AF", annotation_text=f"Avg %Cost {avg_pct:.1f}%")
-            fig_q.update_traces(textposition='top center', textfont=dict(size=11),
-                                hovertemplate="<b>%{customdata[0]}</b><br>Cover: %{x:.1f} bln<br>%Cost: %{y:.1f}%<br>Outbound: %{customdata[1]:,.0f}<br>Stock: %{customdata[2]:,.0f}<extra></extra>")
-            fig_q.update_layout(height=460, plot_bgcolor='white', xaxis_title="Month Cover (bln) →",
-                                yaxis=dict(title="% Cost →", ticksuffix="%"), margin=dict(t=20, b=10, l=10, r=10))
-            st.plotly_chart(fig_q, use_container_width=True)
-
-        # ===== Auto-insight & rekomendasi =====
-        st.markdown("#### 💡 Rekomendasi & Insight")
-        ins360 = []
-        store360['_status'] = store360.apply(lambda r: _cover_status(r['CostKey'], r['Cover']), axis=1)
-        store360['_proj'] = np.where(store360['AvgSales'] > 0, (store360['Stock'] + store360['Replen']) / store360['AvgSales'], 0)
-
-        # 1) Biaya fulfillment tinggi (Grade C/D) — fokus efisiensi, bukan stok
-        if not cost_ce.empty and store360['PctCost'].notna().any():
-            expensive = store360[store360['Grade'].isin(['C', 'D'])].sort_values('PctCost', ascending=False)
-            for _, r in expensive.iterrows():
-                ins360.append(("💸", f"{r['CostKey']}: biaya fulfillment tinggi",
-                               f"%Cost <b>{r['PctCost']:.1f}%</b> (Grade {r['Grade']}) — tertinggi di antara cabang ekspansi. Coverage {r['Cover']:.1f} bulan masih wajar untuk lead time-nya, jadi fokus ke <b>efisiensi biaya</b> (review tarif logistik, dorong BSA/basket size), bukan menahan stok.",
-                               "#FEF3C7", "#F59E0B"))
-        # 2) Coverage rendah sekarang tapi terbantu rencana replenishment
-        under_now = store360[store360['_status'] == 'Understock'].copy()
-        if not under_now.empty:
-            _names = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['_proj']:.1f})" for _, row in under_now.iterrows()])
-            ins360.append(("📈", "Coverage rendah — terbantu rencana replenishment",
-                           f"<b>{len(under_now)} cabang</b> di bawah ambang saat ini, namun rencana replenishment mengangkat proyeksi coverage (saat ini→proyeksi): {_names}. <b>Action:</b> pastikan inbound on-track agar tidak stockout sebelum barang tiba.",
-                           "#D1FAE5", "#10B981"))
-        # 3) Sudah cukup stok tapi rencana replen mendorong melewati ambang lead time
-        over_plan = store360[(store360['_status'] != 'Understock') & (store360['_proj'] > store360['CostKey'].apply(_over_thr))].copy()
-        if not over_plan.empty:
-            _names2 = ", ".join([f"{row['CostKey']} ({row['Cover']:.1f}→{row['_proj']:.1f})" for _, row in over_plan.iterrows()])
-            ins360.append(("⚠️", "Tinjau alokasi replenishment",
-                           f"<b>{len(over_plan)} cabang</b> sudah cukup stok & proyeksi coverage-nya melewati ambang lead time setelah replen: {_names2}. <b>Action:</b> pertimbangkan tahan/kurangi alokasi agar modal tidak mengendap.",
-                           "#FEE2E2", "#EF4444"))
-        if not ins360:
-            ins360.append(("✅", "Kondisi seimbang", "Seluruh cabang dalam parameter coverage & biaya yang wajar. Lanjutkan monitoring berkala.", "#D1FAE5", "#10B981"))
-        for icon, title, desc, bg, border in ins360:
-            st.markdown(f"""
-<div style="background:{bg}; border-left:5px solid {border}; padding:14px 18px; border-radius:10px; margin-bottom:10px;">
-<div style="font-weight:800; color:#1F2937; display:flex; align-items:center; gap:8px; font-size:0.95rem;">
-<span style="font-size:1.2rem;">{icon}</span> {title}
-</div>
-<div style="font-size:0.88rem; color:#374151; margin-left:32px; margin-top:4px;">{desc}</div>
-</div>
-""", unsafe_allow_html=True)
 
 with tab_exp:
-    st.subheader("🏬 Expansi Analytics")
-    st.caption("Analitik channel ekspansi: kesehatan stok, distribusi (outbound/replenishment), & biaya fulfillment. PCA = gabungan Bandung + Yogyakarta untuk biaya.")
-    _exp_sub1, _exp_sub2 = st.tabs(["📦 Inventory & Distribution", "💰 Fulfillment Cost"])
-    with _exp_sub1:
-        _render_expansi_inventory()
-    with _exp_sub2:
-        _render_expansi_cost()
+    _render_expansi()
 
 with tab_off:
     st.subheader("🏪 Offline Store Analytics")
@@ -7057,37 +7013,33 @@ with tab_off:
                                   yaxis=dict(autorange="reversed"), margin=dict(t=20, b=10, l=10, r=50))
         st.plotly_chart(fig_off_cov, use_container_width=True)
 
-        oc1, oc2 = st.columns(2)
-        with oc1:
-            st.markdown("#### 📈 Tren Sales Bulanan")
-            if not df_off_sales.empty:
-                _s = df_off_sales.dropna(subset=['Month_Date']).sort_values('Month_Date')
-                _order = _s.drop_duplicates('Month_Label')['Month_Label'].tolist()
-                fig_os = go.Figure()
-                for _stq in _s['Store'].unique():
-                    _sd = _s[_s['Store'] == _stq]
-                    fig_os.add_trace(go.Scatter(x=_sd['Month_Label'], y=_sd['Sales'], name=_stq, mode='lines+markers'))
-                fig_os.update_layout(height=360, plot_bgcolor='white', yaxis_title="Sales (qty)",
-                                     xaxis=dict(categoryorder='array', categoryarray=_order),
-                                     legend=dict(orientation='h', y=1.15, x=0.5, xanchor='center'), margin=dict(t=30, b=10, l=10, r=10))
-                st.plotly_chart(fig_os, use_container_width=True)
-            else:
-                st.info("Data sales offline belum tersedia.")
-        with oc2:
-            st.markdown("#### 📦 Replenishment (Outbound) Bulanan")
-            if not df_off_out.empty:
-                _o = df_off_out.dropna(subset=['Month_Date']).sort_values('Month_Date')
-                _order2 = _o.drop_duplicates('Month_Label')['Month_Label'].tolist()
-                fig_oo = go.Figure()
-                for _stq in _o['Store'].unique():
-                    _od = _o[_o['Store'] == _stq]
-                    fig_oo.add_trace(go.Bar(x=_od['Month_Label'], y=_od['Outbound'], name=_stq))
-                fig_oo.update_layout(height=360, plot_bgcolor='white', barmode='group', yaxis_title="Outbound (qty)",
-                                     xaxis=dict(categoryorder='array', categoryarray=_order2),
-                                     legend=dict(orientation='h', y=1.15, x=0.5, xanchor='center'), margin=dict(t=30, b=10, l=10, r=10))
-                st.plotly_chart(fig_oo, use_container_width=True)
-            else:
-                st.info("Data outbound offline belum tersedia.")
+        # ---- Combo: Sales vs Outbound vs AVG Sales vs On-hand (per store) ----
+        st.markdown("#### 📊 Sales vs Outbound vs AVG Sales vs On-hand")
+        st.caption("Batang = flow bulanan (Sales vs Outbound replenishment, sumbu KIRI). Garis putus abu = AVG Sales (baseline demand). Garis titik oranye = On-hand stock — level (sumbu KANAN, beda satuan biar tidak menelan flow).")
+        _stores_off = df_off_inv['Store'].tolist()
+        _selp = st.selectbox("Pilih store untuk dibandingkan:", _stores_off, key="off_cmp_store")
+        _srow = df_off_inv[df_off_inv['Store'] == _selp].iloc[0]
+        _ssd = (df_off_sales[df_off_sales['Store'] == _selp].dropna(subset=['Month_Date']).sort_values('Month_Date')
+                if not df_off_sales.empty else pd.DataFrame(columns=['Month_Label', 'Sales']))
+        _sod = (df_off_out[df_off_out['Store'] == _selp].dropna(subset=['Month_Date']).sort_values('Month_Date')
+                if not df_off_out.empty else pd.DataFrame(columns=['Month_Label', 'Outbound']))
+        _mlabels = list(dict.fromkeys(list(_ssd['Month_Label']) + list(_sod['Month_Label'])))
+
+        fig_cmp = go.Figure()
+        fig_cmp.add_trace(go.Bar(x=_ssd['Month_Label'], y=_ssd['Sales'], name='Sales', marker_color='#3B82F6'))
+        fig_cmp.add_trace(go.Bar(x=_sod['Month_Label'], y=_sod['Outbound'], name='Outbound (replen)', marker_color='#10B981'))
+        fig_cmp.add_hline(y=_srow['Avg_Sales'], line_dash='dash', line_color='#6B7280',
+                          annotation_text=f"AVG Sales {_srow['Avg_Sales']:,.0f}")
+        if _mlabels:
+            fig_cmp.add_trace(go.Scatter(x=_mlabels, y=[_srow['Stock_Onhand']] * len(_mlabels), name='On-hand (level)',
+                                         mode='lines', line=dict(color='#F59E0B', width=2, dash='dot'), yaxis='y2'))
+        fig_cmp.update_layout(height=430, barmode='group', plot_bgcolor='white',
+                              xaxis=dict(categoryorder='array', categoryarray=_mlabels),
+                              yaxis=dict(title='Qty per bulan (flow)'),
+                              yaxis2=dict(title='On-hand (level)', overlaying='y', side='right', showgrid=False, rangemode='tozero'),
+                              legend=dict(orientation='h', y=1.15, x=0.5, xanchor='center'), margin=dict(t=40, b=10, l=10, r=10))
+        st.plotly_chart(fig_cmp, use_container_width=True)
+        st.caption(f"📦 {_selp}: On-hand {_srow['Stock_Onhand']:,.0f} = coverage {_srow['Stock_Cover']:.1f} bulan (On-hand ÷ AVG Sales). Outbound ≈ Sales → seimbang; On-hand jauh di atas → overstock.")
 
         _ov_stores = df_off_inv[_st_series.values == 'Overstock']
         if not _ov_stores.empty:
