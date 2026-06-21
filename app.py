@@ -7013,33 +7013,38 @@ with tab_off:
                                   yaxis=dict(autorange="reversed"), margin=dict(t=20, b=10, l=10, r=50))
         st.plotly_chart(fig_off_cov, use_container_width=True)
 
-        # ---- Combo: Sales vs Outbound vs AVG Sales vs On-hand (per store) ----
+        # ---- Combo SEMUA store (tanpa filter): Sales vs Outbound vs AVG Sales vs On-hand ----
         st.markdown("#### 📊 Sales vs Outbound vs AVG Sales vs On-hand")
-        st.caption("Batang = flow bulanan (Sales vs Outbound replenishment, sumbu KIRI). Garis putus abu = AVG Sales (baseline demand). Garis titik oranye = On-hand stock — level (sumbu KANAN, beda satuan biar tidak menelan flow).")
+        st.caption("Per store ditampilkan semua: batang = flow bulanan (Sales vs Outbound, sumbu kiri), garis putus = AVG Sales, garis titik = On-hand (sumbu kanan, level — beda satuan biar tidak menelan flow).")
+        st.markdown(
+            "<div style='display:flex;flex-wrap:wrap;gap:18px;font-size:13px;color:#6B7280;margin-bottom:8px'>"
+            "<span><span style='color:#3B82F6'>■</span> Sales</span>"
+            "<span><span style='color:#10B981'>■</span> Outbound (replen)</span>"
+            "<span><span style='color:#6B7280'>┄</span> AVG Sales</span>"
+            "<span><span style='color:#F59E0B'>┈</span> On-hand (sumbu kanan)</span></div>", unsafe_allow_html=True)
         _stores_off = df_off_inv['Store'].tolist()
-        _selp = st.selectbox("Pilih store untuk dibandingkan:", _stores_off, key="off_cmp_store")
-        _srow = df_off_inv[df_off_inv['Store'] == _selp].iloc[0]
-        _ssd = (df_off_sales[df_off_sales['Store'] == _selp].dropna(subset=['Month_Date']).sort_values('Month_Date')
-                if not df_off_sales.empty else pd.DataFrame(columns=['Month_Label', 'Sales']))
-        _sod = (df_off_out[df_off_out['Store'] == _selp].dropna(subset=['Month_Date']).sort_values('Month_Date')
-                if not df_off_out.empty else pd.DataFrame(columns=['Month_Label', 'Outbound']))
-        _mlabels = list(dict.fromkeys(list(_ssd['Month_Label']) + list(_sod['Month_Label'])))
-
-        fig_cmp = go.Figure()
-        fig_cmp.add_trace(go.Bar(x=_ssd['Month_Label'], y=_ssd['Sales'], name='Sales', marker_color='#3B82F6'))
-        fig_cmp.add_trace(go.Bar(x=_sod['Month_Label'], y=_sod['Outbound'], name='Outbound (replen)', marker_color='#10B981'))
-        fig_cmp.add_hline(y=_srow['Avg_Sales'], line_dash='dash', line_color='#6B7280',
-                          annotation_text=f"AVG Sales {_srow['Avg_Sales']:,.0f}")
-        if _mlabels:
-            fig_cmp.add_trace(go.Scatter(x=_mlabels, y=[_srow['Stock_Onhand']] * len(_mlabels), name='On-hand (level)',
-                                         mode='lines', line=dict(color='#F59E0B', width=2, dash='dot'), yaxis='y2'))
-        fig_cmp.update_layout(height=430, barmode='group', plot_bgcolor='white',
-                              xaxis=dict(categoryorder='array', categoryarray=_mlabels),
-                              yaxis=dict(title='Qty per bulan (flow)'),
-                              yaxis2=dict(title='On-hand (level)', overlaying='y', side='right', showgrid=False, rangemode='tozero'),
-                              legend=dict(orientation='h', y=1.15, x=0.5, xanchor='center'), margin=dict(t=40, b=10, l=10, r=10))
-        st.plotly_chart(fig_cmp, use_container_width=True)
-        st.caption(f"📦 {_selp}: On-hand {_srow['Stock_Onhand']:,.0f} = coverage {_srow['Stock_Cover']:.1f} bulan (On-hand ÷ AVG Sales). Outbound ≈ Sales → seimbang; On-hand jauh di atas → overstock.")
+        _ocols = st.columns(len(_stores_off)) if _stores_off else []
+        for _i, _stp in enumerate(_stores_off):
+            _srow = df_off_inv[df_off_inv['Store'] == _stp].iloc[0]
+            _ssd = (df_off_sales[df_off_sales['Store'] == _stp].dropna(subset=['Month_Date']).sort_values('Month_Date')
+                    if not df_off_sales.empty else pd.DataFrame(columns=['Month_Label', 'Sales']))
+            _sod = (df_off_out[df_off_out['Store'] == _stp].dropna(subset=['Month_Date']).sort_values('Month_Date')
+                    if not df_off_out.empty else pd.DataFrame(columns=['Month_Label', 'Outbound']))
+            _mlabels = list(dict.fromkeys(list(_ssd['Month_Label']) + list(_sod['Month_Label'])))
+            fig_cmp = go.Figure()
+            fig_cmp.add_trace(go.Bar(x=_ssd['Month_Label'], y=_ssd['Sales'], name='Sales', marker_color='#3B82F6'))
+            fig_cmp.add_trace(go.Bar(x=_sod['Month_Label'], y=_sod['Outbound'], name='Outbound', marker_color='#10B981'))
+            fig_cmp.add_hline(y=_srow['Avg_Sales'], line_dash='dash', line_color='#6B7280')
+            if _mlabels:
+                fig_cmp.add_trace(go.Scatter(x=_mlabels, y=[_srow['Stock_Onhand']] * len(_mlabels), name='On-hand',
+                                             mode='lines', line=dict(color='#F59E0B', width=2, dash='dot'), yaxis='y2'))
+            fig_cmp.update_layout(height=340, barmode='group', plot_bgcolor='white', showlegend=False,
+                                  title=dict(text=f"{_stp} · cover {_srow['Stock_Cover']:.1f} bln", font=dict(size=13), x=0.02),
+                                  xaxis=dict(categoryorder='array', categoryarray=_mlabels, tickangle=-45),
+                                  yaxis=dict(title=None),
+                                  yaxis2=dict(overlaying='y', side='right', showgrid=False, rangemode='tozero'),
+                                  margin=dict(t=44, b=10, l=8, r=8))
+            _ocols[_i].plotly_chart(fig_cmp, use_container_width=True)
 
         _ov_stores = df_off_inv[_st_series.values == 'Overstock']
         if not _ov_stores.empty:
