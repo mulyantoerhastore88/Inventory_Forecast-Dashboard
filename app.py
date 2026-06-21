@@ -6872,8 +6872,8 @@ def _render_expansi():
 
     # ========================= DISTRIBUTION & INVENTORY =========================
     with sub_dist:
-        st.markdown("#### 📊 Inventory Coverage per Cabang — Saat Ini vs Proyeksi Pasca-Replenishment")
-        st.caption("Batang penuh = coverage saat ini; batang transparan = tambahan rencana replenishment. Total = proyeksi. Ambang overstock disesuaikan lead time.")
+        st.markdown("#### 📊 Inventory Coverage per Branch  & Proyeksi After Replenishment")
+        st.caption("Branch Store Stock Cover Conditions")
         cb = inv7.sort_values('Month_Cover').copy()
         cb['Cover_Now'] = np.where(cb['Avg_Sales'] > 0, cb['Stock_Onhand'] / cb['Avg_Sales'], 0)
         cb['Cover_Replen'] = np.where(cb['Avg_Sales'] > 0, cb['Replenishment'] / cb['Avg_Sales'], 0)
@@ -6895,8 +6895,8 @@ def _render_expansi():
                               yaxis=dict(autorange="reversed"), legend=dict(orientation='h', y=1.12, x=0.5, xanchor='center'), margin=dict(t=30, b=10, l=10, r=60))
         st.plotly_chart(fig_cov, use_container_width=True)
 
-        st.markdown("#### 📦 Outbound Replenishment per Channel — dengan Konteks Inventory")
-        st.caption("Outbound semua channel per bulan + AVG sales, on-hand, coverage, status. '—' = channel central tanpa stok cabang.")
+        st.markdown("#### 📦 Data Outbound per Channel & Inventory Status")
+        st.caption("Data Outbound per Channel Jan-May 2026")
         ob = out_f.copy()
         ob_month_order = ob.dropna(subset=['Month_Date']).drop_duplicates('Month_Label').sort_values('Month_Date')['Month_Label'].tolist()
         piv_ob = ob.pivot_table(index='Store', columns='Month_Label', values='Outbound_Qty', aggfunc='sum')
