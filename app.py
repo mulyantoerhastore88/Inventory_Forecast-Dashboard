@@ -6486,6 +6486,23 @@ def _render_expansi_cost(sel=None):
 """, unsafe_allow_html=True)
 
         st.divider()
+        st.subheader("💵 GMV per Store vs Efisiensi Biaya")
+        st.caption("Batang biru = total GMV (revenue) per store, diurutkan terbesar. Garis merah = %Cost (sumbu kanan) — makin rendah makin efisien. Sandingkan skala revenue dengan efisiensi biaya. (Shopee Official biasanya mendominasi — pakai filter di atas untuk fokus.)")
+        gmv_df = store_summary.sort_values('GMV', ascending=False)
+        fig_gmv = go.Figure()
+        fig_gmv.add_trace(go.Bar(x=gmv_df['Store'], y=gmv_df['GMV'], name='GMV', marker_color='#3B82F6',
+                                 text=[_fmt_rp_short(v) for v in gmv_df['GMV']], textposition='outside',
+                                 hovertemplate="<b>%{x}</b><br>GMV: Rp %{y:,.0f}<extra></extra>"))
+        fig_gmv.add_trace(go.Scatter(x=gmv_df['Store'], y=gmv_df['Cost/GMV %'], name='%Cost', mode='lines+markers',
+                                     line=dict(color='#EF4444', width=2), marker=dict(size=7), yaxis='y2',
+                                     hovertemplate="<b>%{x}</b><br>%Cost: %{y:.2f}%<extra></extra>"))
+        fig_gmv.update_layout(height=420, plot_bgcolor='white', xaxis=dict(tickangle=-30),
+                              yaxis=dict(title='GMV (Rp)'),
+                              yaxis2=dict(title='%Cost', overlaying='y', side='right', ticksuffix='%', showgrid=False, rangemode='tozero'),
+                              legend=dict(orientation='h', y=1.12, x=0.5, xanchor='center'), margin=dict(t=30, b=10, l=10, r=10))
+        st.plotly_chart(fig_gmv, use_container_width=True)
+
+        st.divider()
         col_tree, col_growth = st.columns([1, 1])
 
         with col_tree:
@@ -6927,22 +6944,27 @@ def _render_expansi():
                 st.dataframe(ob_tbl, use_container_width=True, hide_index=True)
 
         st.markdown("#### 📊 Outbound vs AVG Sales vs On-hand (per cabang)")
-        st.caption("Batang = outbound bulanan (sumbu kiri). Garis putus = AVG Sales (baseline). Garis titik = On-hand (sumbu kanan, level). Expansi tak punya sales bulanan per cabang.")
+        st.caption("Batang = outbound bulanan (replenishment, 1 sumbu) + garis AVG Sales berlabel. On-hand & coverage ditonjolkan sebagai metric (level, bukan flow). Expansi tak punya sales bulanan per cabang.")
         _stx = inv7['Store'].tolist()
         if _stx:
             _selx = st.selectbox("Pilih cabang:", _stx, key="exp_cmp_store")
             _rowx = inv7[inv7['Store'] == _selx].iloc[0]
+            _ohx = float(_rowx['Stock_Onhand']); _avx = float(_rowx['Avg_Sales']); _cvx = float(_rowx['Month_Cover'])
+            _sttx = _cover_status(_selx, _cvx)
             _odx = out_f[out_f['Store'] == _selx].dropna(subset=['Month_Date']).sort_values('Month_Date')
             _mlx = _odx['Month_Label'].tolist()
+            mcx1, mcx2, mcx3 = st.columns(3)
+            mcx1.metric("On-hand", f"{_ohx:,.0f}")
+            mcx2.metric("Coverage", f"{_cvx:.1f} bln")
+            mcx3.metric("AVG Sales", f"{_avx:,.0f}")
+            st.markdown(f"<span style='color:{_status_color[_sttx]};font-weight:600'>{_status_emoji[_sttx]}</span>", unsafe_allow_html=True)
             fig_xc = go.Figure()
             fig_xc.add_trace(go.Bar(x=_odx['Month_Label'], y=_odx['Outbound_Qty'], name='Outbound', marker_color='#10B981'))
-            fig_xc.add_hline(y=_rowx['Avg_Sales'], line_dash='dash', line_color='#6B7280', annotation_text=f"AVG Sales {_rowx['Avg_Sales']:,.0f}")
-            if _mlx:
-                fig_xc.add_trace(go.Scatter(x=_mlx, y=[_rowx['Stock_Onhand']] * len(_mlx), name='On-hand (level)', mode='lines',
-                                            line=dict(color='#F59E0B', width=2, dash='dot'), yaxis='y2'))
-            fig_xc.update_layout(height=400, plot_bgcolor='white', xaxis=dict(categoryorder='array', categoryarray=_mlx),
-                                 yaxis=dict(title='Outbound / bulan'), yaxis2=dict(title='On-hand (level)', overlaying='y', side='right', showgrid=False, rangemode='tozero'),
-                                 legend=dict(orientation='h', y=1.15, x=0.5, xanchor='center'), margin=dict(t=40, b=10, l=10, r=10))
+            fig_xc.add_hline(y=_avx, line_dash='dash', line_color='#6B7280',
+                             annotation_text=f"AVG Sales {_avx:,.0f}", annotation_position="top left", annotation_font=dict(size=11, color='#6B7280'))
+            fig_xc.update_layout(height=380, plot_bgcolor='white', showlegend=False,
+                                 xaxis=dict(categoryorder='array', categoryarray=_mlx),
+                                 yaxis=dict(title='Outbound / bulan'), margin=dict(t=20, b=10, l=10, r=10))
             st.plotly_chart(fig_xc, use_container_width=True)
 
     # ============================= FULFILLMENT COST ============================
@@ -7013,38 +7035,38 @@ with tab_off:
                                   yaxis=dict(autorange="reversed"), margin=dict(t=20, b=10, l=10, r=50))
         st.plotly_chart(fig_off_cov, use_container_width=True)
 
-        # ---- Combo SEMUA store (tanpa filter): Sales vs Outbound vs AVG Sales vs On-hand ----
+        # ---- SEMUA store (tanpa filter): Sales vs Outbound (flow) + AVG line berlabel + On-hand/coverage sbg metric ----
         st.markdown("#### 📊 Sales vs Outbound vs AVG Sales vs On-hand")
-        st.caption("Per store ditampilkan semua: batang = flow bulanan (Sales vs Outbound, sumbu kiri), garis putus = AVG Sales, garis titik = On-hand (sumbu kanan, level — beda satuan biar tidak menelan flow).")
+        st.caption("Per store: batang Sales vs Outbound (flow bulanan, 1 sumbu) + garis AVG Sales berlabel. On-hand & coverage ditonjolkan sebagai angka di atas chart — keduanya level (nilai tunggal), bukan flow, jadi lebih informatif sebagai metric daripada garis datar.")
         st.markdown(
             "<div style='display:flex;flex-wrap:wrap;gap:18px;font-size:13px;color:#6B7280;margin-bottom:8px'>"
             "<span><span style='color:#3B82F6'>■</span> Sales</span>"
             "<span><span style='color:#10B981'>■</span> Outbound (replen)</span>"
-            "<span><span style='color:#6B7280'>┄</span> AVG Sales</span>"
-            "<span><span style='color:#F59E0B'>┈</span> On-hand (sumbu kanan)</span></div>", unsafe_allow_html=True)
+            "<span><span style='color:#6B7280'>┄</span> AVG Sales (baseline)</span></div>", unsafe_allow_html=True)
         _stores_off = df_off_inv['Store'].tolist()
         _ocols = st.columns(len(_stores_off)) if _stores_off else []
         for _i, _stp in enumerate(_stores_off):
             _srow = df_off_inv[df_off_inv['Store'] == _stp].iloc[0]
+            _oh = float(_srow['Stock_Onhand']); _av = float(_srow['Avg_Sales']); _cv = float(_srow['Stock_Cover'])
+            _stt = _off_status(_cv)
             _ssd = (df_off_sales[df_off_sales['Store'] == _stp].dropna(subset=['Month_Date']).sort_values('Month_Date')
                     if not df_off_sales.empty else pd.DataFrame(columns=['Month_Label', 'Sales']))
             _sod = (df_off_out[df_off_out['Store'] == _stp].dropna(subset=['Month_Date']).sort_values('Month_Date')
                     if not df_off_out.empty else pd.DataFrame(columns=['Month_Label', 'Outbound']))
             _mlabels = list(dict.fromkeys(list(_ssd['Month_Label']) + list(_sod['Month_Label'])))
-            fig_cmp = go.Figure()
-            fig_cmp.add_trace(go.Bar(x=_ssd['Month_Label'], y=_ssd['Sales'], name='Sales', marker_color='#3B82F6'))
-            fig_cmp.add_trace(go.Bar(x=_sod['Month_Label'], y=_sod['Outbound'], name='Outbound', marker_color='#10B981'))
-            fig_cmp.add_hline(y=_srow['Avg_Sales'], line_dash='dash', line_color='#6B7280')
-            if _mlabels:
-                fig_cmp.add_trace(go.Scatter(x=_mlabels, y=[_srow['Stock_Onhand']] * len(_mlabels), name='On-hand',
-                                             mode='lines', line=dict(color='#F59E0B', width=2, dash='dot'), yaxis='y2'))
-            fig_cmp.update_layout(height=340, barmode='group', plot_bgcolor='white', showlegend=False,
-                                  title=dict(text=f"{_stp} · cover {_srow['Stock_Cover']:.1f} bln", font=dict(size=13), x=0.02),
-                                  xaxis=dict(categoryorder='array', categoryarray=_mlabels, tickangle=-45),
-                                  yaxis=dict(title=None),
-                                  yaxis2=dict(overlaying='y', side='right', showgrid=False, rangemode='tozero'),
-                                  margin=dict(t=44, b=10, l=8, r=8))
-            _ocols[_i].plotly_chart(fig_cmp, use_container_width=True)
+            with _ocols[_i]:
+                st.markdown(f"<div style='font-weight:600;margin-bottom:2px'>{_stp} &nbsp;<span style='color:{_ostatus_color[_stt]};font-size:13px'>{_ostatus_emoji[_stt]}</span></div>", unsafe_allow_html=True)
+                st.metric("On-hand", f"{_oh:,.0f}", f"{_cv:.1f} bln coverage", delta_color="off")
+                fig_cmp = go.Figure()
+                fig_cmp.add_trace(go.Bar(x=_ssd['Month_Label'], y=_ssd['Sales'], name='Sales', marker_color='#3B82F6'))
+                fig_cmp.add_trace(go.Bar(x=_sod['Month_Label'], y=_sod['Outbound'], name='Outbound', marker_color='#10B981'))
+                fig_cmp.add_hline(y=_av, line_dash='dash', line_color='#6B7280',
+                                  annotation_text=f"AVG {_av:,.0f}", annotation_position="top left",
+                                  annotation_font=dict(size=11, color='#6B7280'))
+                fig_cmp.update_layout(height=300, barmode='group', plot_bgcolor='white', showlegend=False,
+                                      xaxis=dict(categoryorder='array', categoryarray=_mlabels, tickangle=-45),
+                                      yaxis=dict(title='Qty / bulan'), margin=dict(t=10, b=10, l=8, r=8))
+                st.plotly_chart(fig_cmp, use_container_width=True)
 
         _ov_stores = df_off_inv[_st_series.values == 'Overstock']
         if not _ov_stores.empty:
